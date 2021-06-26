@@ -14,45 +14,45 @@ var NoWait = time.Duration(0)
 
 // Phases
 const (
-	Started              = "Started"
-	PreBackupHooks       = "PreBackupHooks"
-	BackupSrcManifests   = "BackupSrcManifests"
-	PostBackupHooks      = "PostBackupHooks"
-	AnnotateResources    = "AnnotateResources"
-	QuiesceApplications  = "QuiesceApplications"
-	EnsureQuiesced       = "EnsureQuiesced"
-	RegisterFCD          = "RegisterFCD"
-	ProvisionDestPV      = "ProvisionDestPV"
-	PreRestoreHooks      = "PreRestoreHooks"
-	RestoreDestManifests = "RestoreDestManifests"
-	PostRestoreHooks     = "PostRestoreHooks"
-	Verification         = "Verification"
-	MigrationFailed      = "MigrationFailed"
-	Canceling            = "Canceling"
-	Canceled             = "Canceled"
-	Rollback             = "Rollback"
-	Completed            = "Completed"
+	Started               = "Started"
+	PreBackupHooks        = "PreBackupHooks"
+	BackupSrcManifests    = "BackupSrcManifests"
+	PostBackupHooks       = "PostBackupHooks"
+	ChangePVReclaimPolicy = "ChangePVReclaimPolicy"
+	QuiesceApplications   = "QuiesceApplications"
+	EnsureQuiesced        = "EnsureQuiesced"
+	RegisterFCD           = "RegisterFCD"
+	ProvisionDestPV       = "ProvisionDestPV"
+	PreRestoreHooks       = "PreRestoreHooks"
+	RestoreDestManifests  = "RestoreDestManifests"
+	PostRestoreHooks      = "PostRestoreHooks"
+	Verification          = "Verification"
+	MigrationFailed       = "MigrationFailed"
+	Canceling             = "Canceling"
+	Canceled              = "Canceled"
+	Rollback              = "Rollback"
+	Completed             = "Completed"
 )
 
 var PhaseDescriptions = map[string]string{
-	Started:              "Migration started.",
-	PreBackupHooks:       "Run hooks before backup",
-	BackupSrcManifests:   "Backup resources from source cluster",
-	PostBackupHooks:      "Run hooks after backup",
-	AnnotateResources:    "Annotate resources in source cluster",
-	QuiesceApplications:  "Quiesce target applications in source cluster",
-	EnsureQuiesced:       "Ensure applications quiesced",
-	RegisterFCD:          "Register target PVs as FCD",
-	ProvisionDestPV:      "Provision PVs in destination cluster",
-	PreRestoreHooks:      "Run hooks before restore",
-	RestoreDestManifests: "Restore resources to destination cluster",
-	PostRestoreHooks:     "Run hooks after restore",
-	Verification:         "Verify applications up and running",
-	MigrationFailed:      "Migration failed",
-	Canceling:            "Canceling migration",
-	Canceled:             "Canceled migration",
-	Rollback:             "Rollback migration",
-	Completed:            "Migration is completed",
+	Started:               "Migration started.",
+	PreBackupHooks:        "Run hooks before backup",
+	BackupSrcManifests:    "Backup resources from source cluster",
+	PostBackupHooks:       "Run hooks after backup",
+	ChangePVReclaimPolicy: "Change target PV reclaim policy to retain",
+	QuiesceApplications:   "Quiesce target applications in source cluster",
+	EnsureQuiesced:        "Ensure applications quiesced",
+	RegisterFCD:           "Register target PVs as FCD",
+	ProvisionDestPV:       "Provision PVs in destination cluster",
+	PreRestoreHooks:       "Run hooks before restore",
+	RestoreDestManifests:  "Restore resources to destination cluster",
+	PostRestoreHooks:      "Run hooks after restore",
+	Verification:          "Verify applications up and running",
+	MigrationFailed:       "Migration failed",
+	Canceling:             "Canceling migration",
+	Canceled:              "Canceled migration",
+	Rollback:              "Rollback migration",
+	Completed:             "Migration is completed",
 }
 
 // Flags
@@ -128,10 +128,11 @@ var MoveItinerary = Itinerary{
 		{Name: PreBackupHooks, Step: StepBackup},
 		{Name: BackupSrcManifests, Step: StepBackup},
 		{Name: PostBackupHooks, Step: StepBackup},
-		{Name: QuiesceApplications, Step: StepQuiesce, all: Quiesce},
-		{Name: EnsureQuiesced, Step: StepQuiesce, all: Quiesce},
-		{Name: RegisterFCD, Step: StepMigratePV, all: HasPVs},
-		{Name: ProvisionDestPV, Step: StepMigratePV, all: HasPVs},
+		{Name: QuiesceApplications, Step: StepQuiesce},
+		{Name: EnsureQuiesced, Step: StepQuiesce},
+		{Name: ChangePVReclaimPolicy, Step: StepMigratePV},
+		{Name: RegisterFCD, Step: StepMigratePV},
+		{Name: ProvisionDestPV, Step: StepMigratePV},
 		{Name: PreRestoreHooks, Step: StepRestore},
 		{Name: RestoreDestManifests, Step: StepRestore},
 		{Name: PostRestoreHooks, Step: StepRestore},
@@ -178,12 +179,12 @@ type Task struct {
 func (t *Task) init() error {
 	if t.failed() {
 		t.Itinerary = FailedItinerary
-	//} else if t.canceled() {
-	//	t.Itinerary = CancelItinerary
-	//} else if t.rollback() {
-	//	t.Itinerary = RollbackItinerary
-	//} else if t.stage() {
-	//	t.Itinerary = StageItinerary
+		//} else if t.canceled() {
+		//	t.Itinerary = CancelItinerary
+		//} else if t.rollback() {
+		//	t.Itinerary = RollbackItinerary
+		//} else if t.stage() {
+		//	t.Itinerary = StageItinerary
 	} else {
 		// TODO Choose itinerary according to PV migrate method: move, copy or stateless
 		t.Itinerary = MoveItinerary
@@ -368,8 +369,16 @@ func (t *Task) updatePipeline() {
 	t.Owner.Status.ReflectPipeline()
 }
 
-// Advance the Task to the next phase.
+// Advance the task to the next phase.
 func (t *Task) next() error {
+	// Write time taken to complete phase
+	t.Owner.Status.StageCondition(migapi.Running)
+	cond := t.Owner.Status.FindCondition(migapi.Running)
+	if cond != nil {
+		elapsed := time.Since(cond.LastTransitionTime.Time)
+		t.Logger.Info("Phase completed", "phaseElapsed", elapsed)
+	}
+
 	current := -1
 	for i, phase := range t.Itinerary.Phases {
 		if phase.Name != t.Phase {
@@ -390,6 +399,8 @@ func (t *Task) next() error {
 			return liberr.Wrap(err)
 		}
 		if !flag {
+			t.Logger.Info("Skipped phase due to flag evaluation.",
+				"skippedPhase", next.Name)
 			continue
 		}
 		flag, err = t.anyFlags(next)
@@ -410,7 +421,7 @@ func (t *Task) next() error {
 
 // Evaluate `all` flags.
 func (t *Task) allFlags(phase Phase) (bool, error) {
-	anyPVs, _ := t.HasPVs()
+	anyPVs, _ := t.hasPVs()
 	if phase.all&HasPVs != 0 && !anyPVs {
 		return false, nil
 	}
@@ -430,7 +441,7 @@ func (t *Task) allFlags(phase Phase) (bool, error) {
 
 // Evaluate `any` flags.
 func (t *Task) anyFlags(phase Phase) (bool, error) {
-	anyPVs, _ := t.HasPVs()
+	anyPVs, _ := t.hasPVs()
 	if phase.any&HasPVs != 0 && anyPVs {
 		return true, nil
 	}
@@ -445,7 +456,7 @@ func (t *Task) anyFlags(phase Phase) (bool, error) {
 
 // Get whether the associated plan lists not skipped PVs.
 // First return value is PVs overall, and second is limited to Move PVs
-func (t *Task) HasPVs() (bool, bool) {
+func (t *Task) hasPVs() (bool, bool) {
 	var anyPVs bool
 	for _, pv := range t.PlanResources.MigPlan.Spec.PersistentVolumes.List {
 		if pv.Selection.Action == migapi.PvMoveAction {
