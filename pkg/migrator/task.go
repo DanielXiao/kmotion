@@ -2,6 +2,7 @@ package migrator
 
 import (
 	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
+	"github.com/danielxiao/mig-controller/pkg/compat"
 	liberr "github.com/konveyor/controller/pkg/error"
 	"github.com/sirupsen/logrus"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -10,6 +11,7 @@ import (
 	"time"
 )
 
+var PollInterval = time.Duration(time.Millisecond * 500)
 var NoWait = time.Duration(0)
 
 // Phases
@@ -215,6 +217,27 @@ func (t *Task) Run() error {
 	switch t.Phase {
 	case Started:
 		return t.next()
+	case QuiesceApplications:
+		err := t.quiesceApplications()
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
+	case EnsureQuiesced:
+		for {
+			quiesced, err := t.ensureQuiescedPodsTerminated()
+			if err != nil {
+				return liberr.Wrap(err)
+			}
+			if quiesced {
+				return t.next()
+			} else {
+				// TODO add timeout here
+				t.Logger.Info("Quiesce in source cluster is incomplete. " +
+					"Pods are not yet terminated, waiting.")
+				time.Sleep(PollInterval)
+			}
+		}
 	case BackupSrcManifests:
 		restConfig, err := t.PlanResources.SrcMigCluster.BuildRestConfig(t.Client)
 		if err != nil {
@@ -482,4 +505,24 @@ func (t *Task) hasVerify() bool {
 // Returns true if the source cluster is a SourceOpenshift cluster
 func (t *Task) isSourceOpenshift() bool {
 	return t.PlanResources.SrcMigCluster.Spec.Vendor == migapi.OpenShift
+}
+
+// Get a client for the source cluster.
+func (t *Task) getSourceClient() (compat.Client, error) {
+	return t.PlanResources.SrcMigCluster.GetClient(t.Client)
+}
+
+// Get a client for the destination cluster.
+func (t *Task) getDestinationClient() (compat.Client, error) {
+	return t.PlanResources.DestMigCluster.GetClient(t.Client)
+}
+
+// Get the migration source namespaces without mapping.
+func (t *Task) sourceNamespaces() []string {
+	return t.PlanResources.MigPlan.GetSourceNamespaces()
+}
+
+// Get the migration source namespaces without mapping.
+func (t *Task) destinationNamespaces() []string {
+	return t.PlanResources.MigPlan.GetDestinationNamespaces()
 }
