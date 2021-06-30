@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/danielxiao/mig-controller v0.0.0-20210623095844-39e8995ed623
+	github.com/google/uuid v1.2.0
 	github.com/konveyor/controller v0.4.1
 	github.com/openshift/api v0.0.0-20210105115604-44119421ec6b
 	github.com/pkg/errors v0.9.1

@@ -5,11 +5,13 @@ import (
 	"fmt"
 	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
 	"github.com/danielxiao/mig-controller/pkg/controller/migplan"
+	"github.com/google/uuid"
 	liberr "github.com/konveyor/controller/pkg/error"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vslm"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"regexp"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -17,6 +19,7 @@ import (
 const (
 	ReclaimPolicyAnnotation = "migrator.run.tanzu.vmware.com/PreReclaimPolicy"
 	FCDIDAnnotation = "migrator.run.tanzu.vmware.com/FCDID"
+	ProvisionedByAnnotation = "pv.kubernetes.io/provisioned-by"
 	CSISecretName           = "vsphere-config-secret"
 	CSISecretNameSpace      = "kube-system"
 	CSIConfFile             = "csi-vsphere.conf"
@@ -94,7 +97,6 @@ func (t *Task) registerFCD() error {
 		return liberr.Wrap(err)
 	}
 	data := string(secret.Data[CSIConfFile])
-	t.Logger.Debugf("%s:\n %s", CSIConfFile, data)
 	vCenter, err := grepCSIConf(data, "VirtualCenter \"(.+)\"")
 	if err != nil {
 		return liberr.Wrap(err)
@@ -122,6 +124,10 @@ func (t *Task) registerFCD() error {
 	}
 	pvs := t.getPVs()
 	for _, pv := range pvs.List {
+		if pv.NFS != nil {
+			t.Logger.Infof("PV %s is nfs type, skip registering FCD", pv.Name)
+			continue
+		}
 		srcProvisioner := getProvisioner(pv.StorageClass, t.PlanResources.MigPlan.Status.SrcStorageClasses)
 		destProvisioner := getProvisioner(pv.Selection.StorageClass, t.PlanResources.MigPlan.Status.DestStorageClasses)
 		if srcProvisioner == VSphereInTreeDriverName && destProvisioner == VSphereCSIDriverName {
@@ -139,13 +145,13 @@ func (t *Task) registerFCD() error {
 					return liberr.Wrap(err)
 				}
 				volumePath := fmt.Sprintf("https://%s/folder/%s?dcPath=%s&dsName=%s", vCenter, vmdkPath, datacenter, dsName)
-				t.Logger.Debugf("PV: %s, volumePath: %s", pv.Name, volumePath)
+				t.Logger.Infof("Register PV as FCD: %s, volumePath: %s", pv.Name, volumePath)
 				vStorageObject, err := globalObjectManager.RegisterDisk(context.TODO(), volumePath, "")
 				if err != nil {
 					return liberr.Wrap(err)
 				} else {
 					id := vStorageObject.Config.Id.Id
-					t.Logger.Infof("Registered %s as FCD %s", pv.Name, id)
+					t.Logger.Infof("PV %s 's FCD %s", pv.Name, id)
 					pvResource.Annotations[FCDIDAnnotation] = id
 					err = srcClient.Update(context.TODO(), pvResource)
 					if err != nil {
@@ -156,10 +162,174 @@ func (t *Task) registerFCD() error {
 				t.Logger.Infof("PV %s is already registed as FCD %s, skipping", pv.Name, fcdID)
 			}
 		} else {
-			t.Logger.Infof("Source PV provisioner %s, Destination PV provisioner %s, no need to register FCD", srcProvisioner, destProvisioner)
+			t.Logger.Infof("Source PV provisioner %s, Destination PV provisioner %s, skip registering FCD", srcProvisioner, destProvisioner)
 		}
 	}
 	return nil
+}
+
+func (t *Task) staticallyProvisionDestPV() error {
+	srcClient, err := t.getSourceClient()
+	if err != nil {
+		return liberr.Wrap(err)
+	}
+	destClient, err := t.getDestinationClient()
+	if err != nil {
+		return liberr.Wrap(err)
+	}
+	pvs := t.getPVs()
+	nsMap := t.PlanResources.MigPlan.GetNamespaceMapping()
+	for _, pv := range pvs.List {
+		if pv.Selection.Action != migapi.PvMoveAction {
+			return fmt.Errorf("PV %s's action is %s, expect %s", pv.Name, pv.Selection.Action, migapi.PvMoveAction)
+		}
+		if pv.NFS != nil {
+			// TODO high priority
+			return fmt.Errorf("PV %s is nfs type, not implemented yet", pv.Name)
+		}
+		srcPVResource := &corev1.PersistentVolume{}
+		err = srcClient.Get(context.TODO(), k8sclient.ObjectKey{Name: pv.Name}, srcPVResource)
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		srcProvisioner := getProvisioner(pv.StorageClass, t.PlanResources.MigPlan.Status.SrcStorageClasses)
+		destProvisioner := getProvisioner(pv.Selection.StorageClass, t.PlanResources.MigPlan.Status.DestStorageClasses)
+		destPVCNamespace := nsMap[pv.PVC.Namespace]
+		destPVName := fmt.Sprintf("import-%s", uuid.New().String())
+		var destPVResource *corev1.PersistentVolume
+		switch destProvisioner {
+		case VSphereCSIDriverName:
+			switch srcProvisioner {
+			case VSphereInTreeDriverName:
+				if fcdID, ok := srcPVResource.Annotations[FCDIDAnnotation]; ok {
+					destPVResource = buildVSphereCSIPVSpec(
+						destPVName,
+						pv.PVC.Name,
+						destPVCNamespace,
+						srcPVResource.Spec.VsphereVolume.FSType,
+						fcdID,
+						srcPVResource.Spec.Capacity,
+						srcPVResource.Spec.AccessModes,
+						srcPVResource.Labels)
+				} else {
+					return fmt.Errorf("can not find %s from PV %s annotation", FCDIDAnnotation, pv.Name)
+				}
+			case VSphereCSIDriverName:
+				fcdID := srcPVResource.Spec.CSI.VolumeHandle
+				destPVResource = buildVSphereCSIPVSpec(
+					destPVName,
+					pv.PVC.Name,
+					destPVCNamespace,
+					srcPVResource.Spec.CSI.FSType,
+					fcdID,
+					srcPVResource.Spec.Capacity,
+					srcPVResource.Spec.AccessModes,
+					srcPVResource.Labels)
+			}
+		case VSphereInTreeDriverName:
+			switch srcProvisioner {
+			case VSphereInTreeDriverName:
+				destPVResource = buildVSphereCSPPVSpec(
+					destPVName,
+					pv.PVC.Name,
+					destPVCNamespace,
+					srcPVResource.Spec.VsphereVolume.FSType,
+					srcPVResource.Spec.VsphereVolume.VolumePath,
+					srcPVResource.Spec.Capacity,
+					srcPVResource.Spec.AccessModes,
+					srcPVResource.Labels)
+			case VSphereCSIDriverName:
+				//TODO low priority
+				return fmt.Errorf("not implement yet from %s to %s", srcProvisioner, destProvisioner)
+			}
+
+		}
+		if destPVResource == nil {
+			return fmt.Errorf("not supported from %s to %s", srcProvisioner, destProvisioner)
+		}
+		t.Logger.Infof("Privision PV %s in destination cluster with spec:\n %s", destPVResource.Name, destPVResource.String())
+		err := destClient.Create(context.TODO(), destPVResource)
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		srcPVCResource := &corev1.PersistentVolumeClaim{}
+		err = srcClient.Get(context.TODO(), k8sclient.ObjectKey{Namespace: pv.PVC.Namespace, Name: pv.PVC.Name}, srcPVCResource)
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		empty := ""
+		destPVCResource := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      srcPVCResource.Name,
+				Namespace: destPVCNamespace,
+				Labels:    srcPVCResource.Labels,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes:      srcPVCResource.Spec.AccessModes,
+				Resources:        srcPVCResource.Spec.Resources,
+				StorageClassName: &empty,
+				VolumeName:       destPVName,
+			},
+		}
+		t.Logger.Infof("Privision PVC %s in destination cluster with spec:\n %s", destPVCResource.Name, destPVCResource.String())
+		err = destClient.Create(context.TODO(), destPVCResource)
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func buildVSphereCSIPVSpec(pvName, pvcName, pvcNamespace, fsType, fcdID string, capacity corev1.ResourceList, accessMode []corev1.PersistentVolumeAccessMode, labels map[string]string) *corev1.PersistentVolume {
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        pvName,
+			Annotations: map[string]string{ProvisionedByAnnotation: VSphereCSIDriverName},
+			Labels:      labels,
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			Capacity:                      capacity,
+			AccessModes:                   accessMode,
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+			ClaimRef: &corev1.ObjectReference{
+				Name: pvcName,
+				Namespace: pvcNamespace,
+			},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver: VSphereCSIDriverName,
+					FSType: fsType,
+					VolumeAttributes: map[string]string{"type": "vSphere CNS Block Volume"},
+					VolumeHandle: fcdID,
+				},
+			},
+		},
+	}
+}
+
+func buildVSphereCSPPVSpec(pvName, pvcName, pvcNamespace, fsType, volumePath string, capacity corev1.ResourceList, accessMode []corev1.PersistentVolumeAccessMode, labels map[string]string) *corev1.PersistentVolume {
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        pvName,
+			Annotations: map[string]string{ProvisionedByAnnotation: VSphereInTreeDriverName},
+			Labels:      labels,
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			Capacity:                      capacity,
+			AccessModes:                   accessMode,
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+			ClaimRef: &corev1.ObjectReference{
+				Name: pvcName,
+				Namespace: pvcNamespace,
+			},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				VsphereVolume: &corev1.VsphereVirtualDiskVolumeSource{
+					FSType: fsType,
+					VolumePath: volumePath,
+				},
+			},
+		},
+	}
 }
 
 func getVStorageObjectManager(vCenter, user, password string) (*vslm.GlobalObjectManager, error) {

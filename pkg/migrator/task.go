@@ -16,45 +16,45 @@ var NoWait = time.Duration(0)
 
 // Phases
 const (
-	Started               = "Started"
-	PreBackupHooks        = "PreBackupHooks"
-	BackupSrcManifests    = "BackupSrcManifests"
-	PostBackupHooks       = "PostBackupHooks"
-	ChangePVReclaimPolicy = "ChangePVReclaimPolicy"
-	QuiesceApplications   = "QuiesceApplications"
-	EnsureQuiesced        = "EnsureQuiesced"
-	RegisterFCD           = "RegisterFCD"
-	ProvisionDestPV       = "ProvisionDestPV"
-	PreRestoreHooks       = "PreRestoreHooks"
-	RestoreDestManifests  = "RestoreDestManifests"
-	PostRestoreHooks      = "PostRestoreHooks"
-	Verification          = "Verification"
-	MigrationFailed       = "MigrationFailed"
-	Canceling             = "Canceling"
-	Canceled              = "Canceled"
-	Rollback              = "Rollback"
-	Completed             = "Completed"
+	Started                   = "Started"
+	PreBackupHooks            = "PreBackupHooks"
+	BackupSrcManifests        = "BackupSrcManifests"
+	PostBackupHooks           = "PostBackupHooks"
+	ChangePVReclaimPolicy     = "ChangePVReclaimPolicy"
+	QuiesceApplications       = "QuiesceApplications"
+	EnsureQuiesced            = "EnsureQuiesced"
+	RegisterFCD               = "RegisterFCD"
+	StaticallyProvisionDestPV = "StaticallyProvisionDestPV"
+	PreRestoreHooks           = "PreRestoreHooks"
+	RestoreDestManifests      = "RestoreDestManifests"
+	PostRestoreHooks          = "PostRestoreHooks"
+	Verification              = "Verification"
+	MigrationFailed           = "MigrationFailed"
+	Canceling                 = "Canceling"
+	Canceled                  = "Canceled"
+	Rollback                  = "Rollback"
+	Completed                 = "Completed"
 )
 
 var PhaseDescriptions = map[string]string{
-	Started:               "Migration started.",
-	PreBackupHooks:        "Run hooks before backup",
-	BackupSrcManifests:    "Backup resources from source cluster",
-	PostBackupHooks:       "Run hooks after backup",
-	ChangePVReclaimPolicy: "Change target PV reclaim policy to retain",
-	QuiesceApplications:   "Quiesce target applications in source cluster",
-	EnsureQuiesced:        "Ensure applications quiesced",
-	RegisterFCD:           "Register target PVs as FCD",
-	ProvisionDestPV:       "Provision PVs in destination cluster",
-	PreRestoreHooks:       "Run hooks before restore",
-	RestoreDestManifests:  "Restore resources to destination cluster",
-	PostRestoreHooks:      "Run hooks after restore",
-	Verification:          "Verify applications up and running",
-	MigrationFailed:       "Migration failed",
-	Canceling:             "Canceling migration",
-	Canceled:              "Canceled migration",
-	Rollback:              "Rollback migration",
-	Completed:             "Migration is completed",
+	Started:                   "Migration started.",
+	PreBackupHooks:            "Run hooks before backup",
+	BackupSrcManifests:        "Backup resources from source cluster",
+	PostBackupHooks:           "Run hooks after backup",
+	ChangePVReclaimPolicy:     "Change target PV reclaim policy to retain",
+	QuiesceApplications:       "Quiesce target applications in source cluster",
+	EnsureQuiesced:            "Ensure applications quiesced",
+	RegisterFCD:               "Register target PVs as FCD",
+	StaticallyProvisionDestPV: "Statically Provision PVs in destination cluster",
+	PreRestoreHooks:           "Run hooks before restore",
+	RestoreDestManifests:      "Restore resources to destination cluster",
+	PostRestoreHooks:          "Run hooks after restore",
+	Verification:              "Verify applications up and running",
+	MigrationFailed:           "Migration failed",
+	Canceling:                 "Canceling migration",
+	Canceled:                  "Canceled migration",
+	Rollback:                  "Rollback migration",
+	Completed:                 "Migration is completed",
 }
 
 // Flags
@@ -134,7 +134,7 @@ var MoveItinerary = Itinerary{
 		{Name: EnsureQuiesced, Step: StepQuiesce},
 		{Name: ChangePVReclaimPolicy, Step: StepMigratePV},
 		{Name: RegisterFCD, Step: StepMigratePV},
-		{Name: ProvisionDestPV, Step: StepMigratePV},
+		{Name: StaticallyProvisionDestPV, Step: StepMigratePV},
 		{Name: PreRestoreHooks, Step: StepRestore},
 		{Name: RestoreDestManifests, Step: StepRestore},
 		{Name: PostRestoreHooks, Step: StepRestore},
@@ -258,6 +258,12 @@ func (t *Task) Run() error {
 		return t.next()
 	case RegisterFCD:
 		err := t.registerFCD()
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
+	case StaticallyProvisionDestPV:
+		err := t.staticallyProvisionDestPV()
 		if err != nil {
 			return liberr.Wrap(err)
 		}
