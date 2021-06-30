@@ -250,6 +250,18 @@ func (t *Task) Run() error {
 			return liberr.Wrap(err)
 		}
 		return t.next()
+	case ChangePVReclaimPolicy:
+		err := t.changePVReclaimPolicy()
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
+	case RegisterFCD:
+		err := t.registerFCD()
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
 	case RestoreDestManifests:
 		restConfig, err := t.PlanResources.DestMigCluster.BuildRestConfig(t.Client)
 		if err != nil {
@@ -399,7 +411,7 @@ func (t *Task) next() error {
 	cond := t.Owner.Status.FindCondition(migapi.Running)
 	if cond != nil {
 		elapsed := time.Since(cond.LastTransitionTime.Time)
-		t.Logger.Info("Phase completed", "phaseElapsed", elapsed)
+		t.Logger.Infof("Phase %s completed phaseElapsed %s", t.Phase, elapsed)
 	}
 
 	current := -1
