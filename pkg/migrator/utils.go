@@ -3,12 +3,16 @@ package migrator
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"io/ioutil"
 	"os"
+	"path"
 )
 
 func createManifestFile(logger *logrus.Logger, cachePath, name string) (*os.File, error) {
-	backupFile, err := ioutil.TempFile(cachePath, fmt.Sprintf("%s.tar", name))
+	backupFilePath := path.Join(cachePath, fmt.Sprintf("%s.tar", name))
+	if _, err := os.Stat(backupFilePath); err == nil {
+		os.Remove(backupFilePath)
+	}
+	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
 		return nil, err
 	}
