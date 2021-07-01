@@ -263,7 +263,11 @@ func (t *Task) Run() error {
 		}
 		return t.next()
 	case StaticallyProvisionDestPV:
-		err := t.staticallyProvisionDestPV()
+		err := t.createDestNamespaces()
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		err = t.staticallyProvisionDestPV()
 		if err != nil {
 			return liberr.Wrap(err)
 		}
