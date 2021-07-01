@@ -212,7 +212,7 @@ func (t *Task) Run() error {
 	if err := t.init(); err != nil {
 		return err
 	}
-	t.Logger.Infof("[RUN] phase %s", t.Phase)
+	t.Logger.Infof("[START] Phase %s", t.Phase)
 	defer t.updatePipeline()
 
 	id := string(t.Owner.UID)
@@ -424,7 +424,7 @@ func (t *Task) next() error {
 	cond := t.Owner.Status.FindCondition(migapi.Running)
 	if cond != nil {
 		elapsed := time.Since(cond.LastTransitionTime.Time)
-		t.Logger.Infof("Phase %s completed phaseElapsed %s", t.Phase, elapsed)
+		t.Logger.Infof("[END] Phase %s completed phaseElapsed %s", t.Phase, elapsed)
 	}
 
 	current := -1
