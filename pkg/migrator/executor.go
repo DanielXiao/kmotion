@@ -10,13 +10,23 @@ import (
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func Migrate(logger *logrus.Logger, pluginDir, cacheDir string, client k8sclient.Client, namespacedName types.NamespacedName, planResource *migapi.PlanResources) error {
+func Migrate(logger *logrus.Logger, pluginDir, cacheDir string, client k8sclient.Client, namespacedName types.NamespacedName, planResources *migapi.PlanResources) error {
+	srcClient, err := planResources.SrcMigCluster.GetClient(client)
+	if err != nil {
+		return err
+	}
+	destClient, err := planResources.DestMigCluster.GetClient(client)
+	if err != nil {
+		return err
+	}
 	t := &Task{
 		Logger:        logger,
 		PluginDir:     pluginDir,
 		CacheDir:      cacheDir,
 		Client:        client,
-		PlanResources: planResource,
+		PlanResources: planResources,
+		SrcClient:     srcClient,
+		DestClient:    destClient,
 	}
 	for {
 		// Get Migration

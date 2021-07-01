@@ -1,6 +1,7 @@
 package migrator
 
 import (
+	"fmt"
 	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
 	"github.com/danielxiao/mig-controller/pkg/compat"
 	liberr "github.com/konveyor/controller/pkg/error"
@@ -169,6 +170,8 @@ type Task struct {
 	BackupFile    *os.File
 	Backup        *velerov1api.Backup
 	Client        k8sclient.Client
+	SrcClient     compat.Client
+	DestClient    compat.Client
 	Owner         *migapi.MigMigration
 	PlanResources *migapi.PlanResources
 	Annotations   map[string]string
@@ -531,12 +534,18 @@ func (t *Task) isSourceOpenshift() bool {
 
 // Get a client for the source cluster.
 func (t *Task) getSourceClient() (compat.Client, error) {
-	return t.PlanResources.SrcMigCluster.GetClient(t.Client)
+	if t.SrcClient == nil {
+		return nil, fmt.Errorf("source client is not initialized")
+	}
+	return t.SrcClient, nil
 }
 
 // Get a client for the destination cluster.
 func (t *Task) getDestinationClient() (compat.Client, error) {
-	return t.PlanResources.DestMigCluster.GetClient(t.Client)
+	if t.DestClient == nil {
+		return nil, fmt.Errorf("destination client is not initialized")
+	}
+	return t.DestClient, nil
 }
 
 // Get the migration source namespaces without mapping.
