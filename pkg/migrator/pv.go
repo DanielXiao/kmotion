@@ -168,6 +168,34 @@ func (t *Task) registerFCD() error {
 	return nil
 }
 
+func (t *Task) ensurePVCBond() (bool, error) {
+	destClient, err := t.getDestinationClient()
+	if err != nil {
+		return false, liberr.Wrap(err)
+	}
+	pvs := t.getPVs()
+	for _, ns := range t.destinationNamespaces() {
+		pvcResourceList := &corev1.PersistentVolumeClaimList{}
+		err = destClient.List(context.TODO(), pvcResourceList, k8sclient.InNamespace(ns))
+		if err != nil {
+			return false, liberr.Wrap(err)
+		}
+		for _, pvcResource := range pvcResourceList.Items {
+			if pvcResource.Status.Phase != corev1.ClaimBound {
+				for _, pv := range pvs.List {
+					if pv.PVC.Name == pvcResource.Name {
+						t.Logger.Infof("PVC %s is still in %s status", pvcResource.Name, pvcResource.Status.Phase)
+						return false, nil
+					}
+				}
+			} else {
+				t.Logger.Infof("PVC %s is in %s status", pvcResource.Name, corev1.ClaimBound)
+			}
+		}
+	}
+	return true, nil
+}
+
 func (t *Task) staticallyProvisionDestPV() error {
 	srcClient, err := t.getSourceClient()
 	if err != nil {

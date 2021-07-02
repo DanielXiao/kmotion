@@ -26,6 +26,7 @@ const (
 	EnsureQuiesced            = "EnsureQuiesced"
 	RegisterFCD               = "RegisterFCD"
 	StaticallyProvisionDestPV = "StaticallyProvisionDestPV"
+	EnsurePVCBond             = "EnsurePVCBond"
 	PreRestoreHooks           = "PreRestoreHooks"
 	RestoreDestManifests      = "RestoreDestManifests"
 	PostRestoreHooks          = "PostRestoreHooks"
@@ -47,6 +48,7 @@ var PhaseDescriptions = map[string]string{
 	EnsureQuiesced:            "Ensure applications quiesced",
 	RegisterFCD:               "Register target PVs as FCD",
 	StaticallyProvisionDestPV: "Statically Provision PVs in destination cluster",
+	EnsurePVCBond:             "Ensure provisioned PVC Bond with PV",
 	PreRestoreHooks:           "Run hooks before restore",
 	RestoreDestManifests:      "Restore resources to destination cluster",
 	PostRestoreHooks:          "Run hooks after restore",
@@ -136,6 +138,7 @@ var MoveItinerary = Itinerary{
 		{Name: ChangePVReclaimPolicy, Step: StepMigratePV},
 		{Name: RegisterFCD, Step: StepMigratePV},
 		{Name: StaticallyProvisionDestPV, Step: StepMigratePV},
+		{Name: EnsurePVCBond, Step: StepMigratePV},
 		{Name: PreRestoreHooks, Step: StepRestore},
 		{Name: RestoreDestManifests, Step: StepRestore},
 		{Name: PostRestoreHooks, Step: StepRestore},
@@ -275,6 +278,20 @@ func (t *Task) Run() error {
 			return liberr.Wrap(err)
 		}
 		return t.next()
+	case EnsurePVCBond:
+		for {
+			bound, err := t.ensurePVCBond()
+			if err != nil {
+				return liberr.Wrap(err)
+			}
+			if bound {
+				return t.next()
+			} else {
+				// TODO add timeout here
+				t.Logger.Info("PVC and PV are still binding")
+				time.Sleep(PollInterval)
+			}
+		}
 	case RestoreDestManifests:
 		restConfig, err := t.PlanResources.DestMigCluster.BuildRestConfig(t.Client)
 		if err != nil {
