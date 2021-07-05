@@ -218,7 +218,6 @@ func (t *Task) Run() error {
 	t.Logger.Infof("[START] Phase %s", t.Phase)
 	defer t.updatePipeline()
 
-	id := string(t.Owner.UID)
 	// Run the current phase.
 	switch t.Phase {
 	case Started:
@@ -245,14 +244,10 @@ func (t *Task) Run() error {
 			}
 		}
 	case BackupSrcManifests:
-		restConfig, err := t.PlanResources.SrcMigCluster.BuildRestConfig(t.Client)
-		if err != nil {
+		if err := t.createManifestFile(); err != nil {
 			return liberr.Wrap(err)
 		}
-		if t.BackupFile, err = createManifestFile(t.Logger, t.CacheDir, id); err != nil {
-			return liberr.Wrap(err)
-		}
-		if t.Backup, err = runBackup(t.Logger, id, restConfig, t.PluginDir, t.BackupFile, t.PlanResources.MigPlan.Spec.Namespaces); err != nil {
+		if err := t.runBackup(); err != nil {
 			return liberr.Wrap(err)
 		}
 		return t.next()
@@ -293,17 +288,13 @@ func (t *Task) Run() error {
 			}
 		}
 	case RestoreDestManifests:
-		restConfig, err := t.PlanResources.DestMigCluster.BuildRestConfig(t.Client)
-		if err != nil {
+		if _, err := t.BackupFile.Seek(0, 0); err != nil {
 			return liberr.Wrap(err)
 		}
-		if _, err = t.BackupFile.Seek(0, 0); err != nil {
+		if err := t.runRestore(); err != nil {
 			return liberr.Wrap(err)
 		}
-		if _, err = runRestore(t.Logger, id, restConfig, t.PluginDir, t.BackupFile, t.Backup); err != nil {
-			return liberr.Wrap(err)
-		}
-		if err = cleanManifestFile(t.Logger, t.BackupFile); err != nil {
+		if err := t.cleanManifestFile(); err != nil {
 			return liberr.Wrap(err)
 		}
 		return t.next()

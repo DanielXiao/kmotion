@@ -4,34 +4,37 @@ import (
 	"context"
 	"fmt"
 	liberr "github.com/konveyor/controller/pkg/error"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"path"
 )
 
-func createManifestFile(logger *logrus.Logger, cachePath, name string) (*os.File, error) {
-	backupFilePath := path.Join(cachePath, fmt.Sprintf("%s.tar", name))
+func (t *Task) createManifestFile() error {
+	backupFilePath := path.Join(t.CacheDir, fmt.Sprintf("%s.tar", t.UID()))
 	if _, err := os.Stat(backupFilePath); err == nil {
-		os.Remove(backupFilePath)
+		t.Logger.Infof("File %s exists, remove it", backupFilePath)
+		if err = os.Remove(backupFilePath); err != nil {
+			return err
+		}
 	}
+	t.Logger.Infof("Creat %s for backup k8s manifests", backupFilePath)
 	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	logger.Infof("Created %s for backup k8s manifests", backupFile.Name())
-	return backupFile, nil
+	t.BackupFile = backupFile
+	return nil
 }
 
-func cleanManifestFile(logger *logrus.Logger, backupFile *os.File) error {
-	if err:= backupFile.Close(); err != nil {
+func (t *Task) cleanManifestFile() error {
+	t.Logger.Infof("Remove backup file %s", t.BackupFile.Name())
+	if err := t.BackupFile.Close(); err != nil {
 		return err
 	}
-	if err := os.Remove(backupFile.Name()); err != nil {
+	if err := os.Remove(t.BackupFile.Name()); err != nil {
 		return err
 	}
-	logger.Infof("Removed manifests %s", backupFile.Name())
 	return nil
 }
 

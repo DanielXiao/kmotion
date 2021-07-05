@@ -3,8 +3,6 @@ package migrator
 import (
 	"fmt"
 	"github.com/danielxiao/kmotion/pkg/client"
-	"github.com/sirupsen/logrus"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/backup"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
@@ -12,8 +10,6 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/clientmgmt"
 	"github.com/vmware-tanzu/velero/pkg/podexec"
 	"github.com/vmware-tanzu/velero/pkg/restore"
-	"io"
-	"k8s.io/client-go/rest"
 	"time"
 )
 
@@ -42,46 +38,51 @@ var defaultRestorePriorities = []string{
 	"clusterresourcesets.addons.cluster.x-k8s.io",
 }
 
-func runBackup(logger *logrus.Logger, name string, restConfig *rest.Config, plugins string, backupFile io.Writer, namespaces []string) (*velerov1api.Backup, error) {
-	f:= client.NewFactory(name, restConfig)
+func (t *Task) runBackup() error {
+	restConfig, err := t.PlanResources.SrcMigCluster.BuildRestConfig(t.Client)
+	if err != nil {
+		return err
+	}
+
+	f := client.NewFactory(t.UID(), restConfig)
 	kubeClient, err := f.KubeClient()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	veleroClient, err := f.Client()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	dynamicClient, err := f.DynamicClient()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	kubeClientConfig, err := f.ClientConfig()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Register internal and custom plugins during process start
-	pluginRegistry := clientmgmt.NewRegistry(plugins, logger, logger.Level)
+	pluginRegistry := clientmgmt.NewRegistry(t.PluginDir, t.Logger, t.Logger.Level)
 	if err := pluginRegistry.DiscoverPlugins(); err != nil {
-		return nil, err
+		return err
 	}
 
 	//Get backup plugin instances
-	pluginManager := clientmgmt.NewManager(logger, logger.Level, pluginRegistry)
+	pluginManager := clientmgmt.NewManager(t.Logger, t.Logger.Level, pluginRegistry)
 	defer pluginManager.CleanupClients()
 	actions, err := pluginManager.GetBackupItemActions()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Initialize discovery helper
-	discoveryHelper, err := velerodiscovery.NewHelper(veleroClient.Discovery(), logger)
+	discoveryHelper, err := velerodiscovery.NewHelper(veleroClient.Discovery(), t.Logger)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Intitialize kubernetesBackupper
@@ -95,62 +96,66 @@ func runBackup(logger *logrus.Logger, name string, restConfig *rest.Config, plug
 		false,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Run the backup
-	backupParams := builder.ForBackup("default", name).IncludedNamespaces(namespaces...).ExcludedResources("persistentvolumeclaims", "persistentvolumes").DefaultVolumesToRestic(false).Result()
+	backupParams := builder.ForBackup("default", t.UID()).IncludedNamespaces(t.sourceNamespaces()...).ExcludedResources("persistentvolumeclaims", "persistentvolumes").DefaultVolumesToRestic(false).Result()
 	backupReq := backup.Request{
 		Backup: backupParams,
 	}
-	if err = k8sBackupper.Backup(logger, &backupReq, backupFile, actions, pluginManager); err != nil {
-		return nil, err
-	} else {
-		logger.Infof("Ran backup against %s successfully", restConfig.Host)
+	t.Logger.Infof("Run backup against %s", restConfig.Host)
+	if err = k8sBackupper.Backup(t.Logger, &backupReq, t.BackupFile, actions, pluginManager); err != nil {
+		return err
 	}
-	return backupParams, nil
+	t.Backup = backupParams
+	return nil
 }
 
-func runRestore(logger *logrus.Logger, name string, restConfig *rest.Config, plugins string, backupFile io.Reader, backup *velerov1api.Backup) (*velerov1api.Restore, error) {
-	f := client.NewFactory(name, restConfig)
+func (t *Task) runRestore() error {
+	restConfig, err := t.PlanResources.DestMigCluster.BuildRestConfig(t.Client)
+	if err != nil {
+		return err
+	}
+	f := client.NewFactory(t.UID(), restConfig)
 	kubeClient, err := f.KubeClient()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	veleroClient, err := f.Client()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	dynamicClient, err := f.DynamicClient()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	kubeClientConfig, err := f.ClientConfig()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Register internal and custom plugins during process start
-	pluginRegistry := clientmgmt.NewRegistry(plugins, logger, logger.Level)
+	pluginRegistry := clientmgmt.NewRegistry(t.PluginDir, t.Logger, t.Logger.Level)
 	if err := pluginRegistry.DiscoverPlugins(); err != nil {
-		return nil, err
+		return err
 	}
 
 	//Get restore plugin instances
-	pluginManager := clientmgmt.NewManager(logger, logger.Level, pluginRegistry)
+	pluginManager := clientmgmt.NewManager(t.Logger, t.Logger.Level, pluginRegistry)
 	defer pluginManager.CleanupClients()
 	actions, err := pluginManager.GetRestoreItemActions()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Initialize discovery helper
-	discoveryHelper, err := velerodiscovery.NewHelper(veleroClient.Discovery(), logger)
+	discoveryHelper, err := velerodiscovery.NewHelper(veleroClient.Discovery(), t.Logger)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Intitialize KubernetesRestorer
@@ -161,33 +166,32 @@ func runRestore(logger *logrus.Logger, name string, restConfig *rest.Config, plu
 		defaultRestorePriorities,
 		kubeClient.CoreV1().Namespaces(),
 		nil,
-		240 * time.Minute,
-		10 * time.Minute,
-		logger,
+		240*time.Minute,
+		10*time.Minute,
+		t.Logger,
 		podexec.NewPodCommandExecutor(kubeClientConfig, kubeClient.CoreV1().RESTClient()),
 		kubeClient.CoreV1().RESTClient(),
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//Run the restore
-	restoreParams := builder.ForRestore("default", name).ExcludedResources(nonRestorableResources...).Backup(backup.Name).RestorePVs(false).Result()
+	restoreParams := builder.ForRestore("default", t.UID()).ExcludedResources(nonRestorableResources...).Backup(t.Backup.Name).RestorePVs(false).Result()
 	restoreReq := restore.Request{
-		Log:              logger,
-		Restore:          restoreParams,
-		Backup:           backup,
-		BackupReader:     backupFile,
+		Log:          t.Logger,
+		Restore:      restoreParams,
+		Backup:       t.Backup,
+		BackupReader: t.BackupFile,
 	}
+	t.Logger.Infof("Run restore against %s", restConfig.Host)
 	restoreWarnings, restoreErrors := k8sRestorer.Restore(restoreReq, actions, nil, pluginManager)
-	if len(restoreWarnings.Namespaces) > 0 || len(restoreWarnings.Velero) > 0 || len(restoreWarnings.Cluster) > 0  {
-		logger.Warning(restoreWarnings)
+	if len(restoreWarnings.Namespaces) > 0 || len(restoreWarnings.Velero) > 0 || len(restoreWarnings.Cluster) > 0 {
+		t.Logger.Warning(restoreWarnings)
 	}
 	//TODO reformat the error
-	if len(restoreErrors.Namespaces) > 0 || len(restoreErrors.Velero) > 0 || len(restoreErrors.Cluster) > 0  {
-		return restoreParams, fmt.Errorf("%s", restoreErrors)
-	} else {
-		logger.Infof("Ran restore against %s successfully", restConfig.Host)
+	if len(restoreErrors.Namespaces) > 0 || len(restoreErrors.Velero) > 0 || len(restoreErrors.Cluster) > 0 {
+		return fmt.Errorf("%s", restoreErrors)
 	}
-	return restoreParams, nil
+	return nil
 }
