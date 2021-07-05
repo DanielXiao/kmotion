@@ -156,7 +156,7 @@ var FailedItinerary = Itinerary{
 }
 
 // A Task that provides the complete migration workflow.
-// Logger - A controller's logger.
+// Log - A controller's logger.
 // Client - A controller's (local) client.
 // Owner - A MigMigration resource.
 // PlanResources - A PlanRefResources.
@@ -167,7 +167,7 @@ var FailedItinerary = Itinerary{
 // Errors - Migration errors.
 // Failed - Task phase has failed.
 type Task struct {
-	Logger        *logrus.Logger
+	Log           *logrus.Logger
 	PluginDir     string
 	CacheDir      string
 	BackupFile    *os.File
@@ -215,7 +215,7 @@ func (t *Task) Run() error {
 	if err := t.init(); err != nil {
 		return err
 	}
-	t.Logger.Infof("[START] Phase %s", t.Phase)
+	t.Log.Infof("[START] Phase %s", t.Phase)
 	defer t.updatePipeline()
 
 	// Run the current phase.
@@ -238,7 +238,7 @@ func (t *Task) Run() error {
 				return t.next()
 			} else {
 				// TODO add timeout here
-				t.Logger.Info("Quiesce in source cluster is incomplete. " +
+				t.Log.Info("Quiesce in source cluster is incomplete. " +
 					"Pods are not yet terminated, waiting.")
 				time.Sleep(PollInterval)
 			}
@@ -283,7 +283,7 @@ func (t *Task) Run() error {
 				return t.next()
 			} else {
 				// TODO add timeout here
-				t.Logger.Info("PVC and PV are still binding")
+				t.Log.Info("PVC and PV are still binding")
 				time.Sleep(PollInterval)
 			}
 		}
@@ -307,7 +307,7 @@ func (t *Task) Run() error {
 	}
 
 	if t.Phase == Completed {
-		t.Logger.Info("[COMPLETED]")
+		t.Log.Info("[COMPLETED]")
 	}
 
 	return nil
@@ -432,7 +432,7 @@ func (t *Task) next() error {
 	cond := t.Owner.Status.FindCondition(migapi.Running)
 	if cond != nil {
 		elapsed := time.Since(cond.LastTransitionTime.Time)
-		t.Logger.Infof("[END] Phase %s completed phaseElapsed %s", t.Phase, elapsed)
+		t.Log.Infof("[END] Phase %s completed phaseElapsed %s", t.Phase, elapsed)
 	}
 
 	current := -1
@@ -455,7 +455,7 @@ func (t *Task) next() error {
 			return liberr.Wrap(err)
 		}
 		if !flag {
-			t.Logger.Info("Skipped phase due to flag evaluation.",
+			t.Log.Info("Skipped phase due to flag evaluation.",
 				"skippedPhase", next.Name)
 			continue
 		}

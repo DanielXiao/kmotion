@@ -61,7 +61,7 @@ func (t *Task) changePVReclaimPolicy() error {
 			pvResource.Annotations = make(map[string]string)
 		}
 		reclaimPolicy := string(pvResource.Spec.PersistentVolumeReclaimPolicy)
-		t.Logger.Infof("Change PV %s reclaim policy from %s to %s", pv.Name, reclaimPolicy, corev1.PersistentVolumeReclaimRetain)
+		t.Log.Infof("Change PV %s reclaim policy from %s to %s", pv.Name, reclaimPolicy, corev1.PersistentVolumeReclaimRetain)
 		pvResource.Annotations[migapi.PvActionAnnotation] = pv.Selection.Action
 		pvResource.Annotations[migapi.PvStorageClassAnnotation] = pv.Selection.StorageClass
 		pvResource.Annotations[ReclaimPolicyAnnotation] = reclaimPolicy
@@ -83,7 +83,7 @@ func (t *Task) registerFCD() error {
 		}
 	}
 	if !isDestVsphereCSI {
-		t.Logger.Infof("Destination cluster does not have storage class %s, skip registering FCD", VSphereCSIDriverName)
+		t.Log.Infof("Destination cluster does not have storage class %s, skip registering FCD", VSphereCSIDriverName)
 		return nil
 	}
 
@@ -125,7 +125,7 @@ func (t *Task) registerFCD() error {
 	pvs := t.getPVs()
 	for _, pv := range pvs.List {
 		if pv.NFS != nil {
-			t.Logger.Infof("PV %s is nfs type, skip registering FCD", pv.Name)
+			t.Log.Infof("PV %s is nfs type, skip registering FCD", pv.Name)
 			continue
 		}
 		srcProvisioner := getProvisioner(pv.StorageClass, t.PlanResources.MigPlan.Status.SrcStorageClasses)
@@ -145,13 +145,13 @@ func (t *Task) registerFCD() error {
 					return liberr.Wrap(err)
 				}
 				volumePath := fmt.Sprintf("https://%s/folder/%s?dcPath=%s&dsName=%s", vCenter, vmdkPath, datacenter, dsName)
-				t.Logger.Infof("Register PV as FCD: %s, volumePath: %s", pv.Name, volumePath)
+				t.Log.Infof("Register PV as FCD: %s, volumePath: %s", pv.Name, volumePath)
 				vStorageObject, err := globalObjectManager.RegisterDisk(context.TODO(), volumePath, "")
 				if err != nil {
 					return liberr.Wrap(err)
 				} else {
 					id := vStorageObject.Config.Id.Id
-					t.Logger.Infof("PV %s 's FCD %s", pv.Name, id)
+					t.Log.Infof("PV %s 's FCD %s", pv.Name, id)
 					pvResource.Annotations[FCDIDAnnotation] = id
 					err = srcClient.Update(context.TODO(), pvResource)
 					if err != nil {
@@ -159,10 +159,10 @@ func (t *Task) registerFCD() error {
 					}
 				}
 			} else {
-				t.Logger.Infof("PV %s is already registed as FCD %s, skipping", pv.Name, fcdID)
+				t.Log.Infof("PV %s is already registed as FCD %s, skipping", pv.Name, fcdID)
 			}
 		} else {
-			t.Logger.Infof("Source PV provisioner %s, Destination PV provisioner %s, skip registering FCD", srcProvisioner, destProvisioner)
+			t.Log.Infof("Source PV provisioner %s, Destination PV provisioner %s, skip registering FCD", srcProvisioner, destProvisioner)
 		}
 	}
 	return nil
@@ -184,12 +184,12 @@ func (t *Task) ensurePVCBond() (bool, error) {
 			if pvcResource.Status.Phase != corev1.ClaimBound {
 				for _, pv := range pvs.List {
 					if pv.PVC.Name == pvcResource.Name {
-						t.Logger.Infof("PVC %s is still in %s status", pvcResource.Name, pvcResource.Status.Phase)
+						t.Log.Infof("PVC %s is still in %s status", pvcResource.Name, pvcResource.Status.Phase)
 						return false, nil
 					}
 				}
 			} else {
-				t.Logger.Infof("PVC %s is in %s status", pvcResource.Name, corev1.ClaimBound)
+				t.Log.Infof("PVC %s is in %s status", pvcResource.Name, corev1.ClaimBound)
 			}
 		}
 	}
@@ -275,7 +275,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 		if destPVResource == nil {
 			return fmt.Errorf("not supported from %s to %s", srcProvisioner, destProvisioner)
 		}
-		t.Logger.Infof("Privision PV %s in destination cluster with spec:\n %s", destPVResource.Name, destPVResource.String())
+		t.Log.Infof("Privision PV %s in destination cluster with spec:\n %s", destPVResource.Name, destPVResource.String())
 		err := destClient.Create(context.TODO(), destPVResource)
 		if err != nil {
 			return liberr.Wrap(err)
@@ -299,7 +299,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 				VolumeName:       destPVName,
 			},
 		}
-		t.Logger.Infof("Privision PVC %s in destination cluster with spec:\n %s", destPVCResource.Name, destPVCResource.String())
+		t.Log.Infof("Privision PVC %s in destination cluster with spec:\n %s", destPVCResource.Name, destPVCResource.String())
 		err = destClient.Create(context.TODO(), destPVCResource)
 		if err != nil {
 			return liberr.Wrap(err)

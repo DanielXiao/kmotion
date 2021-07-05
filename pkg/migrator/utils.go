@@ -13,12 +13,12 @@ import (
 func (t *Task) createManifestFile() error {
 	backupFilePath := path.Join(t.CacheDir, fmt.Sprintf("%s.tar", t.UID()))
 	if _, err := os.Stat(backupFilePath); err == nil {
-		t.Logger.Infof("File %s exists, remove it", backupFilePath)
+		t.Log.Infof("File %s exists, remove it", backupFilePath)
 		if err = os.Remove(backupFilePath); err != nil {
 			return err
 		}
 	}
-	t.Logger.Infof("Creat %s for backup k8s manifests", backupFilePath)
+	t.Log.Infof("Creat %s for backup k8s manifests", backupFilePath)
 	backupFile, err := os.Create(backupFilePath)
 	if err != nil {
 		return err
@@ -28,7 +28,7 @@ func (t *Task) createManifestFile() error {
 }
 
 func (t *Task) cleanManifestFile() error {
-	t.Logger.Infof("Remove backup file %s", t.BackupFile.Name())
+	t.Log.Infof("Remove backup file %s", t.BackupFile.Name())
 	if err := t.BackupFile.Close(); err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (t *Task) createDestNamespaces() error {
 		}
 		if !found {
 			nsResource := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
-			t.Logger.Infof("Create namespace %s in destination cluster", ns)
+			t.Log.Infof("Create namespace %s in destination cluster", ns)
 			err = destClient.Create(context.TODO(), nsResource)
 			if err != nil {
 				return liberr.Wrap(err)

@@ -63,7 +63,7 @@ func (t *Task) unQuiesceSrcApplications() error {
 	if err != nil {
 		return liberr.Wrap(err)
 	}
-	t.Logger.Info("Unquiescing applications on source cluster.")
+	t.Log.Info("Unquiescing applications on source cluster.")
 	err = t.unQuiesceApplications(srcClient, t.sourceNamespaces())
 	if err != nil {
 		return liberr.Wrap(err)
@@ -76,7 +76,7 @@ func (t *Task) unQuiesceDestApplications() error {
 	if err != nil {
 		return liberr.Wrap(err)
 	}
-	t.Logger.Info("Unquiescing applications on destination cluster.")
+	t.Log.Info("Unquiescing applications on destination cluster.")
 	err = t.unQuiesceApplications(destClient, t.destinationNamespaces())
 	if err != nil {
 		return liberr.Wrap(err)
@@ -140,7 +140,7 @@ func (t *Task) quiesceDeploymentConfigs(client k8sclient.Client) error {
 				continue
 			}
 			dc.Annotations[migapi.ReplicasAnnotation] = strconv.FormatInt(int64(dc.Spec.Replicas), 10)
-			t.Logger.Info(fmt.Sprintf("Quiescing DeploymentConfig. "+
+			t.Log.Info(fmt.Sprintf("Quiescing DeploymentConfig. "+
 				"Changing .Spec.Replicas from [%v->0]. "+
 				"Annotating with [%v: %v]",
 				dc.Spec.Replicas,
@@ -187,7 +187,7 @@ func (t *Task) unQuiesceDeploymentConfigs(client k8sclient.Client, namespaces []
 			if dc.Spec.Replicas == 0 {
 				dc.Spec.Replicas = int32(number)
 			}
-			t.Logger.Info(fmt.Sprintf("Unquiescing DeploymentConfig. "+
+			t.Log.Info(fmt.Sprintf("Unquiescing DeploymentConfig. "+
 				"Changing .Spec.Replicas from [%v->%v]. "+
 				"Removing Annotation [%v]",
 				currentReplicas, number,
@@ -223,7 +223,7 @@ func (t *Task) quiesceDeployments(client k8sclient.Client) error {
 			if *deployment.Spec.Replicas == zero {
 				continue
 			}
-			t.Logger.Info(fmt.Sprintf("Quiescing Deployment. "+
+			t.Log.Info(fmt.Sprintf("Quiescing Deployment. "+
 				"Changing spec.Replicas from [%v->0]. "+
 				"Annotating with [%v: %v]",
 				*deployment.Spec.Replicas,
@@ -272,7 +272,7 @@ func (t *Task) unQuiesceDeployments(client k8sclient.Client, namespaces []string
 			if *deployment.Spec.Replicas == 0 {
 				deployment.Spec.Replicas = &restoredReplicas
 			}
-			t.Logger.Info(fmt.Sprintf("Unquiescing Deployment. "+
+			t.Log.Info(fmt.Sprintf("Unquiescing Deployment. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Removing Annotation [%v]",
 				currentReplicas, restoredReplicas,
@@ -302,7 +302,7 @@ func (t *Task) quiesceStatefulSets(client k8sclient.Client) error {
 			return liberr.Wrap(err)
 		}
 		for _, set := range list.Items {
-			t.Logger.Info(fmt.Sprintf("Quiescing StatefulSet. "+
+			t.Log.Info(fmt.Sprintf("Quiescing StatefulSet. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Annotating with [%v: %v]",
 				set.Spec.Replicas, zero,
@@ -352,7 +352,7 @@ func (t *Task) unQuiesceStatefulSets(client k8sclient.Client, namespaces []strin
 			delete(set.Annotations, migapi.ReplicasAnnotation)
 			restoredReplicas := int32(number)
 
-			t.Logger.Info(fmt.Sprintf("Unquiescing StatefulSet. "+
+			t.Log.Info(fmt.Sprintf("Unquiescing StatefulSet. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Removing Annotation [%v].",
 				set.Spec.Replicas, replicas,
@@ -387,7 +387,7 @@ func (t *Task) quiesceReplicaSets(client k8sclient.Client) error {
 		}
 		for _, set := range list.Items {
 			if len(set.OwnerReferences) > 0 {
-				t.Logger.Info("Quiesce skipping ReplicaSet, has OwnerReferences",
+				t.Log.Info("Quiesce skipping ReplicaSet, has OwnerReferences",
 					"replicaSet", path.Join(set.Namespace, set.Name))
 				continue
 			}
@@ -398,7 +398,7 @@ func (t *Task) quiesceReplicaSets(client k8sclient.Client) error {
 				continue
 			}
 			set.Annotations[migapi.ReplicasAnnotation] = strconv.FormatInt(int64(*set.Spec.Replicas), 10)
-			t.Logger.Info(fmt.Sprintf("Quiescing ReplicaSet. "+
+			t.Log.Info(fmt.Sprintf("Quiescing ReplicaSet. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Setting Annotation [%v: %v]",
 				set.Spec.Replicas, zero,
@@ -428,7 +428,7 @@ func (t *Task) unQuiesceReplicaSets(client k8sclient.Client, namespaces []string
 		}
 		for _, set := range list.Items {
 			if len(set.OwnerReferences) > 0 {
-				t.Logger.Info("Unquiesce skipping ReplicaSet, has OwnerReferences",
+				t.Log.Info("Unquiesce skipping ReplicaSet, has OwnerReferences",
 					"replicaSet", path.Join(set.Namespace, set.Name))
 				continue
 			}
@@ -449,7 +449,7 @@ func (t *Task) unQuiesceReplicaSets(client k8sclient.Client, namespaces []string
 			if *set.Spec.Replicas == 0 {
 				set.Spec.Replicas = &restoredReplicas
 			}
-			t.Logger.Info(fmt.Sprintf("Unquiescing ReplicaSet. "+
+			t.Log.Info(fmt.Sprintf("Unquiescing ReplicaSet. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Removing Annotation [%v]",
 				0, restoredReplicas, migapi.ReplicasAnnotation),
@@ -490,7 +490,7 @@ func (t *Task) quiesceDaemonSets(client k8sclient.Client) error {
 			}
 			set.Annotations[migapi.NodeSelectorAnnotation] = string(selector)
 			set.Spec.Template.Spec.NodeSelector[migapi.QuiesceNodeSelector] = "true"
-			t.Logger.Info(fmt.Sprintf("Quiescing DaemonSet. "+
+			t.Log.Info(fmt.Sprintf("Quiescing DaemonSet. "+
 				"Changing [Spec.Template.Spec.NodeSelector=%v:true]. "+
 				"Setting annotation [%v: %v]",
 				migapi.QuiesceNodeSelector, migapi.NodeSelectorAnnotation, string(selector)),
@@ -536,7 +536,7 @@ func (t *Task) unQuiesceDaemonSets(client k8sclient.Client, namespaces []string)
 			}
 			delete(set.Annotations, migapi.NodeSelectorAnnotation)
 			set.Spec.Template.Spec.NodeSelector = nodeSelector
-			t.Logger.Info(fmt.Sprintf("Unquiescing DaemonSet. "+
+			t.Log.Info(fmt.Sprintf("Unquiescing DaemonSet. "+
 				"Setting [Spec.Template.Spec.NodeSelector=%v]. "+
 				"Removing Annotation [%v].",
 				nodeSelector, migapi.NodeSelectorAnnotation),
@@ -568,7 +568,7 @@ func (t *Task) quiesceCronJobs(client k8sclient.Client) error {
 			}
 			r.Annotations[migapi.SuspendAnnotation] = "true"
 			r.Spec.Suspend = pointer.BoolPtr(true)
-			t.Logger.Info(fmt.Sprintf("Quiescing Job. "+
+			t.Log.Info(fmt.Sprintf("Quiescing Job. "+
 				"Setting [Spec.Suspend=true]. "+
 				"Setting Annotation [%v]: true",
 				migapi.SuspendAnnotation),
@@ -602,7 +602,7 @@ func (t *Task) unQuiesceCronJobs(client k8sclient.Client, namespaces []string) e
 			}
 			delete(r.Annotations, migapi.SuspendAnnotation)
 			r.Spec.Suspend = pointer.BoolPtr(false)
-			t.Logger.Info("Unquiescing Cron Job. Setting [Spec.Suspend=false]",
+			t.Log.Info("Unquiescing Cron Job. Setting [Spec.Suspend=false]",
 				"cronJob", path.Join(r.Namespace, r.Name))
 			err = client.Update(context.TODO(), &r)
 			if err != nil {
@@ -636,7 +636,7 @@ func (t *Task) quiesceJobs(client k8sclient.Client) error {
 			}
 			job.Annotations[migapi.ReplicasAnnotation] = strconv.FormatInt(int64(*job.Spec.Parallelism), 10)
 			job.Spec.Parallelism = &zero
-			t.Logger.Info(fmt.Sprintf("Quiescing Job. "+
+			t.Log.Info(fmt.Sprintf("Quiescing Job. "+
 				"Setting [Spec.Parallelism=0]. "+
 				"Annotating with [%v: %v]",
 				migapi.ReplicasAnnotation, job.Spec.Parallelism),
@@ -681,7 +681,7 @@ func (t *Task) unQuiesceJobs(client k8sclient.Client, namespaces []string) error
 			if *job.Spec.Parallelism == 0 {
 				job.Spec.Parallelism = &parallelReplicas
 			}
-			t.Logger.Info(fmt.Sprintf("Unquiescing Job. "+
+			t.Log.Info(fmt.Sprintf("Unquiescing Job. "+
 				"Setting [Spec.Parallelism=%v]"+
 				"Removing Annotation [%v]",
 				parallelReplicas, migapi.ReplicasAnnotation),
@@ -734,7 +734,7 @@ func (t *Task) ensureQuiescedPodsTerminated() (bool, error) {
 			}
 			for _, ref := range pod.OwnerReferences {
 				if _, found := kinds[ref.Kind]; found {
-					t.Logger.Info("Found quiesced Pod on source cluster"+
+					t.Log.Info("Found quiesced Pod on source cluster"+
 						" that has not yet terminated. Waiting.",
 						"pod", path.Join(pod.Namespace, pod.Name),
 						"podPhase", pod.Status.Phase)

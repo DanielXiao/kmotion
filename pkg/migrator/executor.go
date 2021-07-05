@@ -20,7 +20,7 @@ func Migrate(logger *logrus.Logger, pluginDir, cacheDir string, client k8sclient
 		return err
 	}
 	t := &Task{
-		Logger:        logger,
+		Log:           logger,
 		PluginDir:     pluginDir,
 		CacheDir:      cacheDir,
 		Client:        client,
