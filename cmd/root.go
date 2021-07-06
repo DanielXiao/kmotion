@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/danielxiao/kmotion/pkg/client"
 	"github.com/danielxiao/kmotion/pkg/migrator"
-	"github.com/danielxiao/mig-controller/pkg/apis"
-	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
+	"github.com/konveyor/mig-controller/pkg/apis"
+	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
 	"github.com/spf13/cobra"
 	"github.com/vmware-tanzu/velero/pkg/cmd/server/plugin"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,13 +19,13 @@ import (
 )
 
 var (
-    rootCmd = &cobra.Command{
-	Use:   "kmotion",
-	Short: "Migrate workloads from one Kubernetes cluster to another",
-	Long: "Migrate workloads from one Kubernetes cluster to another",
-    }
-    kubeClient k8sclient.Client
-	planResources *migapi.PlanResources
+	rootCmd = &cobra.Command{
+		Use:   "kmotion",
+		Short: "Migrate workloads from one Kubernetes cluster to another",
+		Long:  "Migrate workloads from one Kubernetes cluster to another",
+	}
+	kubeClient     k8sclient.Client
+	planResources  *migapi.PlanResources
 	namespacedName types.NamespacedName
 )
 
@@ -53,7 +53,7 @@ func init() {
 		cluster = planResources.DestMigCluster
 	}
 	if len(os.Args) > 1 && os.Args[1] == "run-plugins" {
-		if cluster != nil{
+		if cluster != nil {
 			restConfig, err := cluster.BuildRestConfig(kubeClient)
 			checkError(err)
 			rootCmd.AddCommand(plugin.NewCommand(client.NewFactory(string(migration.UID), restConfig)))

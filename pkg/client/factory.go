@@ -32,14 +32,14 @@ import (
 )
 
 type factory struct {
-	flags       *pflag.FlagSet
+	flags        *pflag.FlagSet
 	clientConfig *rest.Config
-	kubeconfig  string
-	kubecontext string
-	baseName    string
-	namespace   string
-	clientQPS   float32
-	clientBurst int
+	kubeconfig   string
+	kubecontext  string
+	baseName     string
+	namespace    string
+	clientQPS    float32
+	clientBurst  int
 }
 
 // NewFactory returns a Factory.

@@ -3,9 +3,9 @@ module github.com/danielxiao/kmotion
 go 1.15
 
 require (
-	github.com/danielxiao/mig-controller v0.0.0-20210623095844-39e8995ed623
 	github.com/google/uuid v1.2.0
 	github.com/konveyor/controller v0.4.1
+	github.com/konveyor/mig-controller v0.0.0-20210702141352-f5bc7f315744
 	github.com/openshift/api v0.0.0-20210105115604-44119421ec6b
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.0
@@ -21,6 +21,6 @@ require (
 )
 
 replace (
-	github.com/danielxiao/mig-controller => /Users/yifengx/go/src/github.com/danielxiao/mig-controller
-	github.com/vmware-tanzu/velero => github.com/konveyor/velero v0.10.2-0.20210517170947-84365048b688
+	github.com/konveyor/mig-controller => github.com/danielxiao/mig-controller v0.0.0-20210706022611-b11c3051c4f8
+	github.com/vmware-tanzu/velero => github.com/danielxiao/velero v0.10.2-0.20210706070625-e2256ac337d0
 )

@@ -2,9 +2,9 @@ package migrator
 
 import (
 	"fmt"
-	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
-	"github.com/danielxiao/mig-controller/pkg/compat"
 	liberr "github.com/konveyor/controller/pkg/error"
+	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
+	"github.com/konveyor/mig-controller/pkg/compat"
 	"github.com/sirupsen/logrus"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"os"
@@ -12,8 +12,7 @@ import (
 	"time"
 )
 
-var PollInterval = time.Duration(time.Millisecond * 500)
-var NoWait = time.Duration(0)
+var PollInterval = time.Millisecond * 500
 
 // Phases
 const (

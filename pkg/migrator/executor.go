@@ -3,8 +3,8 @@ package migrator
 import (
 	"context"
 	"fmt"
-	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
-	"github.com/danielxiao/mig-controller/pkg/controller/migmigration"
+	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
+	"github.com/konveyor/mig-controller/pkg/controller/migmigration"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/types"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"

@@ -3,10 +3,10 @@ package migrator
 import (
 	"context"
 	"fmt"
-	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
-	"github.com/danielxiao/mig-controller/pkg/controller/migplan"
 	"github.com/google/uuid"
 	liberr "github.com/konveyor/controller/pkg/error"
+	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
+	"github.com/konveyor/mig-controller/pkg/controller/migplan"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vslm"
@@ -18,7 +18,7 @@ import (
 
 const (
 	ReclaimPolicyAnnotation = "migrator.run.tanzu.vmware.com/PreReclaimPolicy"
-	FCDIDAnnotation = "migrator.run.tanzu.vmware.com/FCDID"
+	FCDIDAnnotation         = "migrator.run.tanzu.vmware.com/FCDID"
 	ProvisionedByAnnotation = "pv.kubernetes.io/provisioned-by"
 	CSISecretName           = "vsphere-config-secret"
 	CSISecretNameSpace      = "kube-system"
@@ -320,15 +320,15 @@ func buildVSphereCSIPVSpec(pvName, pvcName, pvcNamespace, fsType, fcdID string, 
 			AccessModes:                   accessMode,
 			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
 			ClaimRef: &corev1.ObjectReference{
-				Name: pvcName,
+				Name:      pvcName,
 				Namespace: pvcNamespace,
 			},
 			PersistentVolumeSource: corev1.PersistentVolumeSource{
 				CSI: &corev1.CSIPersistentVolumeSource{
-					Driver: VSphereCSIDriverName,
-					FSType: fsType,
+					Driver:           VSphereCSIDriverName,
+					FSType:           fsType,
 					VolumeAttributes: map[string]string{"type": "vSphere CNS Block Volume"},
-					VolumeHandle: fcdID,
+					VolumeHandle:     fcdID,
 				},
 			},
 		},
@@ -347,12 +347,12 @@ func buildVSphereCSPPVSpec(pvName, pvcName, pvcNamespace, fsType, volumePath str
 			AccessModes:                   accessMode,
 			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
 			ClaimRef: &corev1.ObjectReference{
-				Name: pvcName,
+				Name:      pvcName,
 				Namespace: pvcNamespace,
 			},
 			PersistentVolumeSource: corev1.PersistentVolumeSource{
 				VsphereVolume: &corev1.VsphereVirtualDiskVolumeSource{
-					FSType: fsType,
+					FSType:     fsType,
 					VolumePath: volumePath,
 				},
 			},

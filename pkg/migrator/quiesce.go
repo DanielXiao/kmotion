@@ -7,8 +7,8 @@ import (
 	"path"
 	"strconv"
 
-	migapi "github.com/danielxiao/mig-controller/pkg/apis/migration/v1alpha1"
 	liberr "github.com/konveyor/controller/pkg/error"
+	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
