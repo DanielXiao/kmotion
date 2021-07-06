@@ -68,4 +68,3 @@ func (t *Task) createDestNamespaces() error {
 	}
 	return nil
 }
-

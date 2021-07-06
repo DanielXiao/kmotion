@@ -12,9 +12,9 @@ import (
 var pluginDir, cacheDir string
 
 var execCmd = &cobra.Command{
-	Use: "exec",
-	Short: "Execute workload migration",
-	Long: "Execute workload migration",
+	Use:     "exec",
+	Short:   "Execute workload migration",
+	Long:    "Execute workload migration",
 	Example: "kmotion exec -p /Users/yifengx/empty -c /Users/yifengx/mig",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// go-plugin uses log.Println to log when it's waiting for all plugin processes to complete so we need to
