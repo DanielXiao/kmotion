@@ -64,7 +64,7 @@ func (t *Task) unQuiesceSrcApplications() error {
 		return liberr.Wrap(err)
 	}
 	t.Log.Info("Unquiescing applications on source cluster.")
-	err = t.unQuiesceApplications(srcClient, t.sourceNamespaces())
+	err = t.unQuiesceApplications(srcClient, t.sourceNamespaces(), t.PlanResources.SrcMigCluster.Spec.Vendor)
 	if err != nil {
 		return liberr.Wrap(err)
 	}
@@ -77,7 +77,7 @@ func (t *Task) unQuiesceDestApplications() error {
 		return liberr.Wrap(err)
 	}
 	t.Log.Info("Unquiescing applications on destination cluster.")
-	err = t.unQuiesceApplications(destClient, t.destinationNamespaces())
+	err = t.unQuiesceApplications(destClient, t.destinationNamespaces(), t.PlanResources.DestMigCluster.Spec.Vendor)
 	if err != nil {
 		return liberr.Wrap(err)
 	}
@@ -85,12 +85,12 @@ func (t *Task) unQuiesceDestApplications() error {
 }
 
 // Unquiesce applications using client and namespace list given
-func (t *Task) unQuiesceApplications(client k8sclient.Client, namespaces []string) error {
+func (t *Task) unQuiesceApplications(client k8sclient.Client, namespaces []string, vendor migapi.Vendor) error {
 	err := t.unQuiesceCronJobs(client, namespaces)
 	if err != nil {
 		return liberr.Wrap(err)
 	}
-	if t.PlanResources.SrcMigCluster.Spec.Vendor == migapi.OpenShift {
+	if vendor == migapi.OpenShift {
 		err = t.unQuiesceDeploymentConfigs(client, namespaces)
 		if err != nil {
 			return liberr.Wrap(err)
