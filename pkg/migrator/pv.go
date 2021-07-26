@@ -258,11 +258,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 		destProvisioner := getProvisioner(pv.Selection.StorageClass, t.PlanResources.MigPlan.Status.DestStorageClasses)
 		destPVCNamespace := nsMap[pv.PVC.Namespace]
 		destPVName := fmt.Sprintf("import-%s", uuid.New().String())
-		labels := srcPVResource.Labels
-		if labels == nil {
-			labels = map[string]string{}
-		}
-		labels[migapi.MigPlanLabel] = t.planUID()
+		labels := t.addMigPlanLabel(srcPVResource.Labels)
 		var destPVResource *corev1.PersistentVolume
 		switch destProvisioner {
 		case VSphereCSIDriverName:
@@ -329,7 +325,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      srcPVCResource.Name,
 				Namespace: destPVCNamespace,
-				Labels:    srcPVCResource.Labels,
+				Labels:    t.addMigPlanLabel(srcPVCResource.Labels),
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes:      srcPVCResource.Spec.AccessModes,
@@ -345,6 +341,14 @@ func (t *Task) staticallyProvisionDestPV() error {
 		}
 	}
 	return nil
+}
+
+func (t *Task) addMigPlanLabel(labels map[string]string) map[string]string {
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[migapi.MigPlanLabel] = t.planUID()
+	return labels
 }
 
 func buildVSphereCSIPVSpec(pvName, pvcName, pvcNamespace, fsType, fcdID string, capacity corev1.ResourceList, accessMode []corev1.PersistentVolumeAccessMode, labels map[string]string) *corev1.PersistentVolume {
