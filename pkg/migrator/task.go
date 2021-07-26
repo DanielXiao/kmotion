@@ -16,47 +16,59 @@ var PollInterval = time.Millisecond * 500
 
 // Phases
 const (
-	Started                   = "Started"
-	PreBackupHooks            = "PreBackupHooks"
-	BackupSrcManifests        = "BackupSrcManifests"
-	PostBackupHooks           = "PostBackupHooks"
-	ChangePVReclaimPolicy     = "ChangePVReclaimPolicy"
-	QuiesceApplications       = "QuiesceApplications"
-	EnsureQuiesced            = "EnsureQuiesced"
-	RegisterFCD               = "RegisterFCD"
-	StaticallyProvisionDestPV = "StaticallyProvisionDestPV"
-	EnsurePVCBond             = "EnsurePVCBond"
-	PreRestoreHooks           = "PreRestoreHooks"
-	RestoreDestManifests      = "RestoreDestManifests"
-	PostRestoreHooks          = "PostRestoreHooks"
-	Verification              = "Verification"
-	MigrationFailed           = "MigrationFailed"
-	Canceling                 = "Canceling"
-	Canceled                  = "Canceled"
-	Rollback                  = "Rollback"
-	Completed                 = "Completed"
+	Started                        = "Started"
+	PreExportHooks                 = "PreExportHooks"
+	ExportSrcManifests             = "ExportSrcManifests"
+	PostExportHooks                = "PostExportHooks"
+	ChangePVReclaimPolicy          = "ChangePVReclaimPolicy"
+	QuiesceApplications            = "QuiesceApplications"
+	EnsureQuiesced                 = "EnsureQuiesced"
+	RegisterFCD                    = "RegisterFCD"
+	StaticallyProvisionDestPV      = "StaticallyProvisionDestPV"
+	EnsurePVCBond                  = "EnsurePVCBond"
+	PreImportHooks                 = "PreImportHooks"
+	ImportManifestsToDest          = "ImportManifestsToDest"
+	PostImportHooks                = "PostImportHooks"
+	Verification                   = "Verification"
+	MigrationFailed                = "MigrationFailed"
+	DeleteMigratedNSResources      = "DeleteMigratedNSResources"
+	EnsurePVsUnmounted             = "EnsurePVsUnmounted"
+	DeleteMigratedPVs              = "DeleteMigratedPVs"
+	DeleteMigratedClusterResources = "DeleteMigratedClusterResources"
+	UnQuiesceSrcApplications       = "UnQuiesceSrcApplications"
+	ResetPVReclaimPolicy           = "ResetPVReclaimPolicy"
+	Canceling                      = "Canceling"
+	Canceled                       = "Canceled"
+	Rollback                       = "Rollback"
+	Completed                      = "Completed"
 )
 
 var PhaseDescriptions = map[string]string{
-	Started:                   "Migration started.",
-	PreBackupHooks:            "Run hooks before backup",
-	BackupSrcManifests:        "Backup resources from source cluster",
-	PostBackupHooks:           "Run hooks after backup",
-	ChangePVReclaimPolicy:     "Change target PV reclaim policy to retain",
-	QuiesceApplications:       "Quiesce target applications in source cluster",
-	EnsureQuiesced:            "Ensure applications quiesced",
-	RegisterFCD:               "Register target PVs as FCD",
-	StaticallyProvisionDestPV: "Statically Provision PVs in destination cluster",
-	EnsurePVCBond:             "Ensure provisioned PVC Bond with PV",
-	PreRestoreHooks:           "Run hooks before restore",
-	RestoreDestManifests:      "Restore resources to destination cluster",
-	PostRestoreHooks:          "Run hooks after restore",
-	Verification:              "Verify applications up and running",
-	MigrationFailed:           "Migration failed",
-	Canceling:                 "Canceling migration",
-	Canceled:                  "Canceled migration",
-	Rollback:                  "Rollback migration",
-	Completed:                 "Migration is completed",
+	Started:                        "Migration started.",
+	PreExportHooks:                 "Run hooks before export resources",
+	ExportSrcManifests:             "Export resources from source cluster",
+	PostExportHooks:                "Run hooks after export resources",
+	ChangePVReclaimPolicy:          "Change target PV reclaim policy to retain in source cluster",
+	QuiesceApplications:            "Quiescing (Scaling to 0 replicas): Deployments, DeploymentConfigs, StatefulSets, ReplicaSets, DaemonSets, CronJobs and Jobs.",
+	EnsureQuiesced:                 "Waiting for Quiesce (Scaling to 0 replicas) to finish for Deployments, DeploymentConfigs, StatefulSets, ReplicaSets, DaemonSets, CronJobs and Jobs.",
+	RegisterFCD:                    "Register target PVs as FCD",
+	StaticallyProvisionDestPV:      "Statically Provision PVs in destination cluster",
+	EnsurePVCBond:                  "Ensure provisioned PVC Bond with PV",
+	PreImportHooks:                 "Run hooks before import resources",
+	ImportManifestsToDest:          "Import resources to destination cluster",
+	PostImportHooks:                "Run hooks after import resources",
+	Verification:                   "Verify applications up and running",
+	MigrationFailed:                "Migration failed",
+	DeleteMigratedNSResources:      "Delete migrated namespace scoped resources",
+	EnsurePVsUnmounted:             "Ensure migrated PVCs are unmounted",
+	DeleteMigratedPVs:              "Delete migrated PVCs and PVs",
+	DeleteMigratedClusterResources: "Delete migrated cluster scoped resources",
+	UnQuiesceSrcApplications:       "UnQuiescing (Scaling to N replicas) source cluster Deployments, DeploymentConfigs, StatefulSets, ReplicaSets, DaemonSets, CronJobs and Jobs.",
+	ResetPVReclaimPolicy:           "Reset PV reclaim policy to original value in source cluster",
+	Canceling:                      "Canceling migration",
+	Canceled:                       "Canceled migration",
+	Rollback:                       "Rollback migration",
+	Completed:                      "Migration is completed",
 }
 
 // Flags
@@ -69,17 +81,18 @@ const (
 
 // Migration steps
 const (
-	StepPrepare          = "Prepare"
-	StepBackup           = "Backup"
-	StepQuiesce          = "Quiesce"
-	StepMigratePV        = "Migrate PV"
-	StepStageBackup      = "StageBackup"
-	StepStageRestore     = "StageRestore"
-	StepRestore          = "Restore"
-	StepCleanup          = "Cleanup"
+	StepPrepareMigration = "Prepare Migration"
+	StepPrepareRollback  = "Prepare Rollback"
+	StepExportResource   = "Export Resources"
+	StepQuiesce          = "Quiesce Applications"
+	StepMigratePV        = "Migrate PVs"
+	StepImportResource   = "Import Resources"
+	StepCleanupMigration = "Cleanup Migration"
+	StepCleanupFail      = "Cleanup Fail"
+	StepCleanupRollback  = "Cleanup Rollback"
 	StepCleanupHelpers   = "CleanupHelpers"
-	StepCleanupMigrated  = "CleanupMigrated"
-	StepCleanupUnquiesce = "CleanupUnquiesce"
+	StepCleanupMigrated  = "Cleanup Migrated"
+	StepUnquiesce        = "Unquiesce Applications"
 )
 
 // Phase defines phase in the migration
@@ -128,21 +141,21 @@ func (r Itinerary) progressReport(phaseName string) (string, int, int) {
 var MoveItinerary = Itinerary{
 	Name: "StatefulMovePV",
 	Phases: []Phase{
-		{Name: Started, Step: StepPrepare},
-		{Name: PreBackupHooks, Step: StepBackup},
-		{Name: BackupSrcManifests, Step: StepBackup},
-		{Name: PostBackupHooks, Step: StepBackup},
+		{Name: Started, Step: StepPrepareMigration},
+		{Name: PreExportHooks, Step: StepExportResource},
+		{Name: ExportSrcManifests, Step: StepExportResource},
+		{Name: PostExportHooks, Step: StepExportResource},
 		{Name: QuiesceApplications, Step: StepQuiesce},
 		{Name: EnsureQuiesced, Step: StepQuiesce},
 		{Name: ChangePVReclaimPolicy, Step: StepMigratePV},
 		{Name: RegisterFCD, Step: StepMigratePV},
 		{Name: StaticallyProvisionDestPV, Step: StepMigratePV},
 		{Name: EnsurePVCBond, Step: StepMigratePV},
-		{Name: PreRestoreHooks, Step: StepRestore},
-		{Name: RestoreDestManifests, Step: StepRestore},
-		{Name: PostRestoreHooks, Step: StepRestore},
-		{Name: Verification, Step: StepCleanup, all: HasVerify},
-		{Name: Completed, Step: StepCleanup},
+		{Name: PreImportHooks, Step: StepImportResource},
+		{Name: ImportManifestsToDest, Step: StepImportResource},
+		{Name: PostImportHooks, Step: StepImportResource},
+		{Name: Verification, Step: StepCleanupMigration, all: HasVerify},
+		{Name: Completed, Step: StepCleanupMigration},
 	},
 }
 
@@ -150,7 +163,21 @@ var FailedItinerary = Itinerary{
 	Name: "Failed",
 	Phases: []Phase{
 		{Name: MigrationFailed, Step: StepCleanupHelpers},
-		{Name: Completed, Step: StepCleanup},
+		{Name: Completed, Step: StepCleanupFail},
+	},
+}
+
+var RollbackItinerary = Itinerary{
+	Name: "Rollback",
+	Phases: []Phase{
+		{Name: Rollback, Step: StepPrepareRollback},
+		{Name: DeleteMigratedNSResources, Step: StepCleanupMigrated},
+		{Name: EnsurePVsUnmounted, Step: StepCleanupMigrated},
+		{Name: DeleteMigratedPVs, Step: StepCleanupMigrated},
+		{Name: DeleteMigratedClusterResources, Step: StepCleanupMigrated},
+		{Name: UnQuiesceSrcApplications, Step: StepUnquiesce},
+		{Name: ResetPVReclaimPolicy, Step: StepUnquiesce},
+		{Name: Completed, Step: StepCleanupRollback},
 	},
 }
 
@@ -188,8 +215,8 @@ func (t *Task) init() error {
 		t.Itinerary = FailedItinerary
 		//} else if t.canceled() {
 		//	t.Itinerary = CancelItinerary
-		//} else if t.rollback() {
-		//	t.Itinerary = RollbackItinerary
+	} else if t.rollback() {
+		t.Itinerary = RollbackItinerary
 		//} else if t.stage() {
 		//	t.Itinerary = StageItinerary
 	} else {
@@ -219,7 +246,7 @@ func (t *Task) Run() error {
 
 	// Run the current phase.
 	switch t.Phase {
-	case Started:
+	case Started, Rollback:
 		return t.next()
 	case QuiesceApplications:
 		err := t.quiesceApplications()
@@ -242,7 +269,7 @@ func (t *Task) Run() error {
 				time.Sleep(PollInterval)
 			}
 		}
-	case BackupSrcManifests:
+	case ExportSrcManifests:
 		if err := t.createManifestFile(); err != nil {
 			return liberr.Wrap(err)
 		}
@@ -286,7 +313,7 @@ func (t *Task) Run() error {
 				time.Sleep(PollInterval)
 			}
 		}
-	case RestoreDestManifests:
+	case ImportManifestsToDest:
 		if _, err := t.BackupFile.Seek(0, 0); err != nil {
 			return liberr.Wrap(err)
 		}
@@ -297,12 +324,49 @@ func (t *Task) Run() error {
 			return liberr.Wrap(err)
 		}
 		return t.next()
-
-	case Completed:
-	default:
-		if err := t.next(); err != nil {
+	case DeleteMigratedNSResources:
+		if err := t.deleteMigratedNamespaceScopedResources(); err != nil {
 			return liberr.Wrap(err)
 		}
+		return t.next()
+	case EnsurePVsUnmounted:
+		for {
+			unmounted, err := t.ensureMigratedPVsUnmounted()
+			if err != nil {
+				return liberr.Wrap(err)
+			}
+			if unmounted {
+				return t.next()
+			} else {
+				// TODO add timeout here
+				t.Log.Info("PVs are still mounted")
+				time.Sleep(PollInterval)
+			}
+		}
+	case DeleteMigratedPVs:
+		if err := t.deleteMigratedPVs(); err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
+	case DeleteMigratedClusterResources:
+		if err := t.deleteMigratedClusterScopedResources(); err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
+	case UnQuiesceSrcApplications:
+		err := t.unQuiesceApplications(t.SrcClient, t.sourceNamespaces(), t.PlanResources.SrcMigCluster.Spec.Vendor)
+		if err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
+	case ResetPVReclaimPolicy:
+		if err := t.resetPVReclaimPolicy(); err != nil {
+			return liberr.Wrap(err)
+		}
+		return t.next()
+	case Completed:
+	default:
+		return t.next()
 	}
 
 	if t.Phase == Completed {
@@ -326,7 +390,7 @@ func (t *Task) Fail(nextPhase string, reasons []string) {
 	})
 	t.failCurrentStep()
 	t.Phase = nextPhase
-	t.Step = StepCleanup
+	//t.Step = StepCleanupHelpers
 }
 
 // Marks current step failed
@@ -349,9 +413,18 @@ func (t *Task) UID() string {
 	return string(t.Owner.UID)
 }
 
+func (t *Task) planUID() string {
+	return string(t.PlanResources.MigPlan.UID)
+}
+
 // Get whether the migration has failed
 func (t *Task) failed() bool {
 	return t.Owner.HasErrors() || t.Owner.Status.HasCondition(migapi.Failed)
+}
+
+// Get whether the migration is rollback.
+func (t *Task) rollback() bool {
+	return t.Owner.Spec.Rollback
 }
 
 func (t *Task) initPipeline(prevItinerary string) error {
@@ -444,7 +517,7 @@ func (t *Task) next() error {
 	}
 	if current == -1 {
 		t.Phase = Completed
-		t.Step = StepCleanup
+		t.Step = StepCleanupMigration
 		return nil
 	}
 	for n := current + 1; n < len(t.Itinerary.Phases); n++ {
@@ -470,7 +543,7 @@ func (t *Task) next() error {
 		return nil
 	}
 	t.Phase = Completed
-	t.Step = StepCleanup
+	t.Step = StepCleanupMigration
 	return nil
 }
 

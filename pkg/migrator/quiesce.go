@@ -22,37 +22,37 @@ import (
 func (t *Task) quiesceApplications() error {
 	client, err := t.getSourceClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.quiesceCronJobs(client)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	if t.PlanResources.SrcMigCluster.Spec.Vendor == migapi.OpenShift {
 		err = t.quiesceDeploymentConfigs(client)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 	}
 	err = t.quiesceDeployments(client)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.quiesceStatefulSets(client)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.quiesceReplicaSets(client)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.quiesceDaemonSets(client)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.quiesceJobs(client)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 
 	return nil
@@ -61,12 +61,12 @@ func (t *Task) quiesceApplications() error {
 func (t *Task) unQuiesceSrcApplications() error {
 	srcClient, err := t.getSourceClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	t.Log.Info("Unquiescing applications on source cluster.")
 	err = t.unQuiesceApplications(srcClient, t.sourceNamespaces(), t.PlanResources.SrcMigCluster.Spec.Vendor)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	return nil
 }
@@ -74,12 +74,12 @@ func (t *Task) unQuiesceSrcApplications() error {
 func (t *Task) unQuiesceDestApplications() error {
 	destClient, err := t.getDestinationClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	t.Log.Info("Unquiescing applications on destination cluster.")
 	err = t.unQuiesceApplications(destClient, t.destinationNamespaces(), t.PlanResources.DestMigCluster.Spec.Vendor)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	return nil
 }
@@ -88,33 +88,33 @@ func (t *Task) unQuiesceDestApplications() error {
 func (t *Task) unQuiesceApplications(client k8sclient.Client, namespaces []string, vendor migapi.Vendor) error {
 	err := t.unQuiesceCronJobs(client, namespaces)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	if vendor == migapi.OpenShift {
 		err = t.unQuiesceDeploymentConfigs(client, namespaces)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 	}
 	err = t.unQuiesceDeployments(client, namespaces)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.unQuiesceStatefulSets(client, namespaces)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.unQuiesceReplicaSets(client, namespaces)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.unQuiesceDaemonSets(client, namespaces)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = t.unQuiesceJobs(client, namespaces)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 
 	return nil
@@ -130,7 +130,7 @@ func (t *Task) quiesceDeploymentConfigs(client k8sclient.Client) error {
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, dc := range list.Items {
 			if dc.Annotations == nil {
@@ -149,7 +149,7 @@ func (t *Task) quiesceDeploymentConfigs(client k8sclient.Client) error {
 			dc.Spec.Replicas = 0
 			err = client.Update(context.TODO(), &dc)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -167,7 +167,7 @@ func (t *Task) unQuiesceDeploymentConfigs(client k8sclient.Client, namespaces []
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, dc := range list.Items {
 			if dc.Annotations == nil {
@@ -179,7 +179,7 @@ func (t *Task) unQuiesceDeploymentConfigs(client k8sclient.Client, namespaces []
 			}
 			number, err := strconv.Atoi(replicas)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			delete(dc.Annotations, migapi.ReplicasAnnotation)
 			currentReplicas := dc.Spec.Replicas
@@ -195,7 +195,7 @@ func (t *Task) unQuiesceDeploymentConfigs(client k8sclient.Client, namespaces []
 				"deploymentConfig", path.Join(dc.Namespace, dc.Name))
 			err = client.Update(context.TODO(), &dc)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -214,7 +214,7 @@ func (t *Task) quiesceDeployments(client k8sclient.Client) error {
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, deployment := range list.Items {
 			if deployment.Annotations == nil {
@@ -233,7 +233,7 @@ func (t *Task) quiesceDeployments(client k8sclient.Client) error {
 			deployment.Spec.Replicas = &zero
 			err = client.Update(context.TODO(), &deployment)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -251,7 +251,7 @@ func (t *Task) unQuiesceDeployments(client k8sclient.Client, namespaces []string
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, deployment := range list.Items {
 			if deployment.Annotations == nil {
@@ -263,7 +263,7 @@ func (t *Task) unQuiesceDeployments(client k8sclient.Client, namespaces []string
 			}
 			number, err := strconv.Atoi(replicas)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			delete(deployment.Annotations, migapi.ReplicasAnnotation)
 			restoredReplicas := int32(number)
@@ -275,12 +275,12 @@ func (t *Task) unQuiesceDeployments(client k8sclient.Client, namespaces []string
 			t.Log.Info(fmt.Sprintf("Unquiescing Deployment. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Removing Annotation [%v]",
-				currentReplicas, restoredReplicas,
+				*currentReplicas, restoredReplicas,
 				migapi.ReplicasAnnotation),
 				"deployment", path.Join(deployment.Namespace, deployment.Name))
 			err = client.Update(context.TODO(), &deployment)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -299,13 +299,13 @@ func (t *Task) quiesceStatefulSets(client k8sclient.Client) error {
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, set := range list.Items {
 			t.Log.Info(fmt.Sprintf("Quiescing StatefulSet. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Annotating with [%v: %v]",
-				set.Spec.Replicas, zero,
+				*set.Spec.Replicas, zero,
 				migapi.ReplicasAnnotation, set.Spec.Replicas),
 				"statefulSet", path.Join(set.Namespace, set.Name))
 			if set.Annotations == nil {
@@ -318,7 +318,7 @@ func (t *Task) quiesceStatefulSets(client k8sclient.Client) error {
 			set.Spec.Replicas = &zero
 			err = client.Update(context.TODO(), &set)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -335,7 +335,7 @@ func (t *Task) unQuiesceStatefulSets(client k8sclient.Client, namespaces []strin
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, set := range list.Items {
 			if set.Annotations == nil {
@@ -347,7 +347,7 @@ func (t *Task) unQuiesceStatefulSets(client k8sclient.Client, namespaces []strin
 			}
 			number, err := strconv.Atoi(replicas)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			delete(set.Annotations, migapi.ReplicasAnnotation)
 			restoredReplicas := int32(number)
@@ -355,7 +355,7 @@ func (t *Task) unQuiesceStatefulSets(client k8sclient.Client, namespaces []strin
 			t.Log.Info(fmt.Sprintf("Unquiescing StatefulSet. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Removing Annotation [%v].",
-				set.Spec.Replicas, replicas,
+				*set.Spec.Replicas, replicas,
 				migapi.ReplicasAnnotation),
 				"statefulSet", path.Join(set.Namespace, set.Name))
 
@@ -365,7 +365,7 @@ func (t *Task) unQuiesceStatefulSets(client k8sclient.Client, namespaces []strin
 			}
 			err = client.Update(context.TODO(), &set)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -383,7 +383,7 @@ func (t *Task) quiesceReplicaSets(client k8sclient.Client) error {
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, set := range list.Items {
 			if len(set.OwnerReferences) > 0 {
@@ -401,13 +401,13 @@ func (t *Task) quiesceReplicaSets(client k8sclient.Client) error {
 			t.Log.Info(fmt.Sprintf("Quiescing ReplicaSet. "+
 				"Changing Spec.Replicas from [%v->%v]. "+
 				"Setting Annotation [%v: %v]",
-				set.Spec.Replicas, zero,
+				*set.Spec.Replicas, zero,
 				migapi.ReplicasAnnotation, set.Spec.Replicas),
 				"replicaSet", path.Join(set.Namespace, set.Name))
 			set.Spec.Replicas = &zero
 			err = client.Update(context.TODO(), &set)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -424,7 +424,7 @@ func (t *Task) unQuiesceReplicaSets(client k8sclient.Client, namespaces []string
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, set := range list.Items {
 			if len(set.OwnerReferences) > 0 {
@@ -441,7 +441,7 @@ func (t *Task) unQuiesceReplicaSets(client k8sclient.Client, namespaces []string
 			}
 			number, err := strconv.Atoi(replicas)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			delete(set.Annotations, migapi.ReplicasAnnotation)
 			restoredReplicas := int32(number)
@@ -456,7 +456,7 @@ func (t *Task) unQuiesceReplicaSets(client k8sclient.Client, namespaces []string
 				"replicaSet", path.Join(set.Namespace, set.Name))
 			err = client.Update(context.TODO(), &set)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -473,7 +473,7 @@ func (t *Task) quiesceDaemonSets(client k8sclient.Client) error {
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, set := range list.Items {
 			if set.Annotations == nil {
@@ -486,7 +486,7 @@ func (t *Task) quiesceDaemonSets(client k8sclient.Client) error {
 			}
 			selector, err := json.Marshal(set.Spec.Template.Spec.NodeSelector)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			set.Annotations[migapi.NodeSelectorAnnotation] = string(selector)
 			set.Spec.Template.Spec.NodeSelector[migapi.QuiesceNodeSelector] = "true"
@@ -497,7 +497,7 @@ func (t *Task) quiesceDaemonSets(client k8sclient.Client) error {
 				"daemonSet", path.Join(set.Namespace, set.Name))
 			err = client.Update(context.TODO(), &set)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -514,7 +514,7 @@ func (t *Task) unQuiesceDaemonSets(client k8sclient.Client, namespaces []string)
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, set := range list.Items {
 			if set.Annotations == nil {
@@ -527,7 +527,7 @@ func (t *Task) unQuiesceDaemonSets(client k8sclient.Client, namespaces []string)
 			nodeSelector := map[string]string{}
 			err := json.Unmarshal([]byte(selector), &nodeSelector)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			// Only change node selector if set to our quiesce nodeselector
 			_, isQuiesced := set.Spec.Template.Spec.NodeSelector[migapi.QuiesceNodeSelector]
@@ -543,7 +543,7 @@ func (t *Task) unQuiesceDaemonSets(client k8sclient.Client, namespaces []string)
 				"daemonSet", path.Join(set.Namespace, set.Name))
 			err = client.Update(context.TODO(), &set)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -557,7 +557,7 @@ func (t *Task) quiesceCronJobs(client k8sclient.Client) error {
 		options := k8sclient.InNamespace(ns)
 		err := client.List(context.TODO(), &list, options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, r := range list.Items {
 			if r.Annotations == nil {
@@ -575,7 +575,7 @@ func (t *Task) quiesceCronJobs(client k8sclient.Client) error {
 				"job", path.Join(r.Namespace, r.Name))
 			err = client.Update(context.TODO(), &r)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -590,7 +590,7 @@ func (t *Task) unQuiesceCronJobs(client k8sclient.Client, namespaces []string) e
 		options := k8sclient.InNamespace(ns)
 		err := client.List(context.TODO(), &list, options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, r := range list.Items {
 			if r.Annotations == nil {
@@ -606,7 +606,7 @@ func (t *Task) unQuiesceCronJobs(client k8sclient.Client, namespaces []string) e
 				"cronJob", path.Join(r.Namespace, r.Name))
 			err = client.Update(context.TODO(), &r)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -625,7 +625,7 @@ func (t *Task) quiesceJobs(client k8sclient.Client) error {
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, job := range list.Items {
 			if job.Annotations == nil {
@@ -639,11 +639,11 @@ func (t *Task) quiesceJobs(client k8sclient.Client) error {
 			t.Log.Info(fmt.Sprintf("Quiescing Job. "+
 				"Setting [Spec.Parallelism=0]. "+
 				"Annotating with [%v: %v]",
-				migapi.ReplicasAnnotation, job.Spec.Parallelism),
+				migapi.ReplicasAnnotation, *job.Spec.Parallelism),
 				"job", path.Join(job.Namespace, job.Name))
 			err = client.Update(context.TODO(), &job)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}
@@ -661,7 +661,7 @@ func (t *Task) unQuiesceJobs(client k8sclient.Client, namespaces []string) error
 			&list,
 			options)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		for _, job := range list.Items {
 			if job.Annotations == nil {
@@ -673,7 +673,7 @@ func (t *Task) unQuiesceJobs(client k8sclient.Client, namespaces []string) error
 			}
 			number, err := strconv.Atoi(replicas)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			delete(job.Annotations, migapi.ReplicasAnnotation)
 			parallelReplicas := int32(number)
@@ -688,7 +688,7 @@ func (t *Task) unQuiesceJobs(client k8sclient.Client, namespaces []string) error
 				"job", path.Join(job.Namespace, job.Name))
 			err = client.Update(context.TODO(), &job)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}

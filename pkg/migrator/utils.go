@@ -3,7 +3,7 @@ package migrator
 import (
 	"context"
 	"fmt"
-	liberr "github.com/konveyor/controller/pkg/error"
+	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
@@ -43,11 +43,11 @@ func (t *Task) createDestNamespaces() error {
 	namespaceList := &corev1.NamespaceList{}
 	destClient, err := t.getDestinationClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	err = destClient.List(context.TODO(), namespaceList)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	for _, ns := range destNamespaces {
 		found := false
@@ -58,11 +58,16 @@ func (t *Task) createDestNamespaces() error {
 			}
 		}
 		if !found {
-			nsResource := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
+			nsResource := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   ns,
+					Labels: map[string]string{migapi.MigPlanLabel: t.planUID()},
+				},
+			}
 			t.Log.Infof("Create namespace %s in destination cluster", ns)
 			err = destClient.Create(context.TODO(), nsResource)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 		}
 	}

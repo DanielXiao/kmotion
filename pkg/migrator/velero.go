@@ -100,7 +100,7 @@ func (t *Task) runBackup() error {
 	}
 
 	//Run the backup
-	backupParams := builder.ForBackup("default", t.UID()).IncludedNamespaces(t.sourceNamespaces()...).ExcludedResources("persistentvolumeclaims", "persistentvolumes").DefaultVolumesToRestic(false).Result()
+	backupParams := builder.ForBackup("default", t.planUID()).IncludedNamespaces(t.sourceNamespaces()...).ExcludedResources("persistentvolumeclaims", "persistentvolumes").DefaultVolumesToRestic(false).Result()
 	backupReq := backup.Request{
 		Backup: backupParams,
 	}
@@ -177,7 +177,7 @@ func (t *Task) runRestore() error {
 	}
 
 	//Run the restore
-	restoreParams := builder.ForRestore("default", t.UID()).ExcludedResources(nonRestorableResources...).Backup(t.Backup.Name).RestorePVs(false).Result()
+	restoreParams := builder.ForRestore("default", t.planUID()).ExcludedResources(nonRestorableResources...).Backup(t.Backup.Name).RestorePVs(false).Result()
 	restoreReq := restore.Request{
 		Log:          t.Log,
 		Restore:      restoreParams,

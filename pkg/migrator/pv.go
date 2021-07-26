@@ -49,13 +49,13 @@ func (t *Task) changePVReclaimPolicy() error {
 	pvs := t.getPVs()
 	client, err := t.getSourceClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	for _, pv := range pvs.List {
 		pvResource := &corev1.PersistentVolume{}
 		err = client.Get(context.TODO(), k8sclient.ObjectKey{Name: pv.Name}, pvResource)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		if pvResource.Annotations == nil {
 			pvResource.Annotations = make(map[string]string)
@@ -68,7 +68,41 @@ func (t *Task) changePVReclaimPolicy() error {
 		pvResource.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
 		err = client.Update(context.TODO(), pvResource)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
+		}
+	}
+	return nil
+}
+
+// resetPVReclaimPolicy reset reclaim policy of target PVs to origin value
+func (t *Task) resetPVReclaimPolicy() error {
+	pvs := t.getPVs()
+	client, err := t.getSourceClient()
+	if err != nil {
+		return err
+	}
+	for _, pv := range pvs.List {
+		pvResource := &corev1.PersistentVolume{}
+		err = client.Get(context.TODO(), k8sclient.ObjectKey{Name: pv.Name}, pvResource)
+		if err != nil {
+			return err
+		}
+		if pvResource.Annotations == nil {
+			pvResource.Annotations = make(map[string]string)
+		}
+		reclaimPolicy, exist := pvResource.Annotations[ReclaimPolicyAnnotation]
+		if !exist {
+			continue
+		}
+		t.Log.Infof("Reset PV %s reclaim policy from %s to %s", pv.Name,
+			pvResource.Spec.PersistentVolumeReclaimPolicy, reclaimPolicy)
+		delete(pvResource.Annotations, migapi.PvActionAnnotation)
+		delete(pvResource.Annotations, migapi.PvStorageClassAnnotation)
+		delete(pvResource.Annotations, ReclaimPolicyAnnotation)
+		pvResource.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimPolicy(reclaimPolicy)
+		err = client.Update(context.TODO(), pvResource)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -89,38 +123,38 @@ func (t *Task) registerFCD() error {
 
 	destClient, err := t.getDestinationClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	secret := &corev1.Secret{}
 	err = destClient.Get(context.TODO(), k8sclient.ObjectKey{Name: CSISecretName, Namespace: CSISecretNameSpace}, secret)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	data := string(secret.Data[CSIConfFile])
 	vCenter, err := grepCSIConf(data, "VirtualCenter \"(.+)\"")
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	user, err := grepCSIConf(data, "user = \"(.+)\"")
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	password, err := grepCSIConf(data, "password = \"(.+)\"")
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	datacenter, err := grepCSIConf(data, "datacenters = \"(.+)\"")
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 
 	globalObjectManager, err := getVStorageObjectManager(vCenter, user, password)
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	srcClient, err := t.getSourceClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	pvs := t.getPVs()
 	for _, pv := range pvs.List {
@@ -134,7 +168,7 @@ func (t *Task) registerFCD() error {
 			pvResource := &corev1.PersistentVolume{}
 			err = srcClient.Get(context.TODO(), k8sclient.ObjectKey{Name: pv.Name}, pvResource)
 			if err != nil {
-				return liberr.Wrap(err)
+				return err
 			}
 			if pvResource.Annotations == nil {
 				pvResource.Annotations = make(map[string]string)
@@ -142,20 +176,20 @@ func (t *Task) registerFCD() error {
 			if fcdID, ok := pvResource.Annotations[FCDIDAnnotation]; !ok {
 				dsName, vmdkPath, err := grepPath(pvResource.Spec.VsphereVolume.VolumePath)
 				if err != nil {
-					return liberr.Wrap(err)
+					return err
 				}
 				volumePath := fmt.Sprintf("https://%s/folder/%s?dcPath=%s&dsName=%s", vCenter, vmdkPath, datacenter, dsName)
 				t.Log.Infof("Register PV as FCD: %s, volumePath: %s", pv.Name, volumePath)
 				vStorageObject, err := globalObjectManager.RegisterDisk(context.TODO(), volumePath, "")
 				if err != nil {
-					return liberr.Wrap(err)
+					return err
 				} else {
 					id := vStorageObject.Config.Id.Id
 					t.Log.Infof("PV %s 's FCD %s", pv.Name, id)
 					pvResource.Annotations[FCDIDAnnotation] = id
 					err = srcClient.Update(context.TODO(), pvResource)
 					if err != nil {
-						return liberr.Wrap(err)
+						return err
 					}
 				}
 			} else {
@@ -199,11 +233,11 @@ func (t *Task) ensurePVCBond() (bool, error) {
 func (t *Task) staticallyProvisionDestPV() error {
 	srcClient, err := t.getSourceClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	destClient, err := t.getDestinationClient()
 	if err != nil {
-		return liberr.Wrap(err)
+		return err
 	}
 	pvs := t.getPVs()
 	nsMap := t.PlanResources.MigPlan.GetNamespaceMapping()
@@ -218,12 +252,17 @@ func (t *Task) staticallyProvisionDestPV() error {
 		srcPVResource := &corev1.PersistentVolume{}
 		err = srcClient.Get(context.TODO(), k8sclient.ObjectKey{Name: pv.Name}, srcPVResource)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		srcProvisioner := getProvisioner(pv.StorageClass, t.PlanResources.MigPlan.Status.SrcStorageClasses)
 		destProvisioner := getProvisioner(pv.Selection.StorageClass, t.PlanResources.MigPlan.Status.DestStorageClasses)
 		destPVCNamespace := nsMap[pv.PVC.Namespace]
 		destPVName := fmt.Sprintf("import-%s", uuid.New().String())
+		labels := srcPVResource.Labels
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[migapi.MigPlanLabel] = t.planUID()
 		var destPVResource *corev1.PersistentVolume
 		switch destProvisioner {
 		case VSphereCSIDriverName:
@@ -238,7 +277,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 						fcdID,
 						srcPVResource.Spec.Capacity,
 						srcPVResource.Spec.AccessModes,
-						srcPVResource.Labels)
+						labels)
 				} else {
 					return fmt.Errorf("can not find %s from PV %s annotation", FCDIDAnnotation, pv.Name)
 				}
@@ -252,7 +291,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 					fcdID,
 					srcPVResource.Spec.Capacity,
 					srcPVResource.Spec.AccessModes,
-					srcPVResource.Labels)
+					labels)
 			}
 		case VSphereInTreeDriverName:
 			switch srcProvisioner {
@@ -265,7 +304,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 					srcPVResource.Spec.VsphereVolume.VolumePath,
 					srcPVResource.Spec.Capacity,
 					srcPVResource.Spec.AccessModes,
-					srcPVResource.Labels)
+					labels)
 			case VSphereCSIDriverName:
 				//TODO low priority
 				return fmt.Errorf("not implement yet from %s to %s", srcProvisioner, destProvisioner)
@@ -278,12 +317,12 @@ func (t *Task) staticallyProvisionDestPV() error {
 		t.Log.Infof("Privision PV %s in destination cluster with spec:\n %s", destPVResource.Name, destPVResource.String())
 		err := destClient.Create(context.TODO(), destPVResource)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		srcPVCResource := &corev1.PersistentVolumeClaim{}
 		err = srcClient.Get(context.TODO(), k8sclient.ObjectKey{Namespace: pv.PVC.Namespace, Name: pv.PVC.Name}, srcPVCResource)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 		empty := ""
 		destPVCResource := &corev1.PersistentVolumeClaim{
@@ -302,7 +341,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 		t.Log.Infof("Privision PVC %s in destination cluster with spec:\n %s", destPVCResource.Name, destPVCResource.String())
 		err = destClient.Create(context.TODO(), destPVCResource)
 		if err != nil {
-			return liberr.Wrap(err)
+			return err
 		}
 	}
 	return nil
@@ -358,6 +397,44 @@ func buildVSphereCSPPVSpec(pvName, pvcName, pvcNamespace, fsType, volumePath str
 			},
 		},
 	}
+}
+
+func (t *Task) deleteMigratedPVs() error {
+	// TODO skip this step if copy PV
+	destClient, err := t.getDestinationClient()
+	if err != nil {
+		return err
+	}
+	matchingLabels := k8sclient.MatchingLabels(map[string]string{
+		migapi.MigPlanLabel: t.planUID(),
+	})
+	pvcList := &corev1.PersistentVolumeClaimList{}
+	t.Log.Infof("Scan PVC with label %s", matchingLabels)
+	err = destClient.List(context.TODO(), pvcList, matchingLabels)
+	if err != nil {
+		return err
+	}
+	for _, pvc := range pvcList.Items {
+		t.Log.Infof("Delete PVC %s/%s", pvc.Namespace, pvc.Name)
+		err = destClient.Delete(context.TODO(), &pvc)
+		if err != nil {
+			return err
+		}
+	}
+	pvList := &corev1.PersistentVolumeList{}
+	t.Log.Infof("Scan PV with label %s", matchingLabels)
+	err = destClient.List(context.TODO(), pvList, matchingLabels)
+	if err != nil {
+		return err
+	}
+	for _, pv := range pvList.Items {
+		t.Log.Infof("Delete PV %s", pv.Name)
+		err = destClient.Delete(context.TODO(), &pv)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func getVStorageObjectManager(vCenter, user, password string) (*vslm.GlobalObjectManager, error) {

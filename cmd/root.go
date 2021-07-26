@@ -47,9 +47,9 @@ func init() {
 	planResources, err = plan.GetRefResources(kubeClient)
 	checkError(err)
 	var cluster *migapi.MigCluster
-	if migration.Status.Phase == migrator.BackupSrcManifests {
+	if migration.Status.Phase == migrator.ExportSrcManifests {
 		cluster = planResources.SrcMigCluster
-	} else if migration.Status.Phase == migrator.RestoreDestManifests {
+	} else if migration.Status.Phase == migrator.ImportManifestsToDest {
 		cluster = planResources.DestMigCluster
 	}
 	if len(os.Args) > 1 && os.Args[1] == "run-plugins" {
