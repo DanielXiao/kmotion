@@ -3,6 +3,7 @@ package migrator
 import (
 	"fmt"
 	"github.com/danielxiao/kmotion/pkg/client"
+	liberr "github.com/konveyor/controller/pkg/error"
 	"github.com/vmware-tanzu/velero/pkg/backup"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
@@ -41,34 +42,34 @@ var defaultRestorePriorities = []string{
 func (t *Task) runBackup() error {
 	restConfig, err := t.PlanResources.SrcMigCluster.BuildRestConfig(t.Client)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	f := client.NewFactory(t.UID(), restConfig)
 	kubeClient, err := f.KubeClient()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	veleroClient, err := f.Client()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	dynamicClient, err := f.DynamicClient()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	kubeClientConfig, err := f.ClientConfig()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Register internal and custom plugins during process start
 	pluginRegistry := clientmgmt.NewRegistry(t.PluginDir, t.Log, t.Log.Level)
 	if err := pluginRegistry.DiscoverPlugins(); err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Get backup plugin instances
@@ -76,13 +77,13 @@ func (t *Task) runBackup() error {
 	defer pluginManager.CleanupClients()
 	actions, err := pluginManager.GetBackupItemActions()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Initialize discovery helper
 	discoveryHelper, err := velerodiscovery.NewHelper(veleroClient.Discovery(), t.Log)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Intitialize kubernetesBackupper
@@ -96,7 +97,7 @@ func (t *Task) runBackup() error {
 		false,
 	)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Run the backup
@@ -106,7 +107,7 @@ func (t *Task) runBackup() error {
 	}
 	t.Log.Infof("Run backup against %s", restConfig.Host)
 	if err = k8sBackupper.Backup(t.Log, &backupReq, t.BackupFile, actions, pluginManager); err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 	t.Backup = backupParams
 	return nil
@@ -115,33 +116,33 @@ func (t *Task) runBackup() error {
 func (t *Task) runRestore() error {
 	restConfig, err := t.PlanResources.DestMigCluster.BuildRestConfig(t.Client)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 	f := client.NewFactory(t.UID(), restConfig)
 	kubeClient, err := f.KubeClient()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	veleroClient, err := f.Client()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	dynamicClient, err := f.DynamicClient()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	kubeClientConfig, err := f.ClientConfig()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Register internal and custom plugins during process start
 	pluginRegistry := clientmgmt.NewRegistry(t.PluginDir, t.Log, t.Log.Level)
 	if err := pluginRegistry.DiscoverPlugins(); err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Get restore plugin instances
@@ -149,13 +150,13 @@ func (t *Task) runRestore() error {
 	defer pluginManager.CleanupClients()
 	actions, err := pluginManager.GetRestoreItemActions()
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Initialize discovery helper
 	discoveryHelper, err := velerodiscovery.NewHelper(veleroClient.Discovery(), t.Log)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Intitialize KubernetesRestorer
@@ -173,7 +174,7 @@ func (t *Task) runRestore() error {
 		kubeClient.CoreV1().RESTClient(),
 	)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	//Run the restore

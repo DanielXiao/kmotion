@@ -239,7 +239,7 @@ func (t *Task) init() error {
 //   4. Return.
 func (t *Task) Run() error {
 	if err := t.init(); err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 	t.Log.Infof("[START] Phase %s", t.Phase)
 	defer t.updatePipeline()

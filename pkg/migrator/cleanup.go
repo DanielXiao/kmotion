@@ -2,6 +2,7 @@ package migrator
 
 import (
 	"context"
+	liberr "github.com/konveyor/controller/pkg/error"
 	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
 	"github.com/konveyor/mig-controller/pkg/gvk"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -49,7 +50,7 @@ func (t *Task) deleteMigratedNamespaceScopedResources() error {
 		"MigPlan associated resources to delete.")
 	client, GVRs, err := gvk.GetNamespacedGVRsForCluster(t.PlanResources.DestMigCluster, t.Client)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	clientListOptions := k8sclient.ListOptions{}
@@ -77,7 +78,7 @@ func (t *Task) deleteMigratedNamespaceScopedResources() error {
 						continue
 					}
 					t.Log.Errorf("Failed to delete %s %s: %s\n", gvr.String(), r.GetName(), err.Error())
-					return err
+					return liberr.Wrap(err)
 				}
 			}
 		}
@@ -125,7 +126,7 @@ func (t *Task) deleteMigratedClusterScopedResources() error {
 		"MigPlan associated resources to delete.")
 	client, GVRs, err := gvk.GetClusterScopedGVRsForCluster(t.PlanResources.DestMigCluster, t.Client)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 
 	clientListOptions := k8sclient.ListOptions{}
@@ -151,7 +152,7 @@ func (t *Task) deleteMigratedClusterScopedResources() error {
 					continue
 				}
 				t.Log.Errorf("Failed to delete %s %s: %s\n", gvr.String(), r.GetName(), err.Error())
-				return err
+				return liberr.Wrap(err)
 			}
 		}
 	}
@@ -162,13 +163,13 @@ func (t *Task) deleteMigratedClusterScopedResources() error {
 	})
 	err = t.DestClient.List(context.TODO(), namespaceList, matchingPlanLabels)
 	if err != nil {
-		return err
+		return liberr.Wrap(err)
 	}
 	for _, ns := range namespaceList.Items {
 		t.Log.Infof("Delete namespace %s", ns.Name)
 		err = t.DestClient.Delete(context.TODO(), &ns)
 		if err != nil {
-			return err
+			return liberr.Wrap(err)
 		}
 	}
 
