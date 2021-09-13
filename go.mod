@@ -22,6 +22,6 @@ require (
 
 replace (
 	bitbucket.org/ww/goautoneg v0.0.0-20120707110453-75cd24fc2f2c => github.com/markusthoemmes/goautoneg v0.0.0-20190713162725-c6008fefa5b1
-	github.com/konveyor/mig-controller => github.com/danielxiao/mig-controller v0.0.0-20210726080052-0c5cf5540757
+	github.com/konveyor/mig-controller => github.com/danielxiao/mig-controller v0.0.0-20210915005913-8b029c8e5725
 	github.com/vmware-tanzu/velero => github.com/danielxiao/velero v0.10.2-0.20210706070625-e2256ac337d0
 )

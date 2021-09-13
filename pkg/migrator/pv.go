@@ -3,6 +3,8 @@ package migrator
 import (
 	"context"
 	"fmt"
+	"regexp"
+
 	"github.com/google/uuid"
 	liberr "github.com/konveyor/controller/pkg/error"
 	migapi "github.com/konveyor/mig-controller/pkg/apis/migration/v1alpha1"
@@ -12,7 +14,6 @@ import (
 	"github.com/vmware/govmomi/vslm"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"regexp"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -25,6 +26,7 @@ const (
 	CSIConfFile             = "csi-vsphere.conf"
 	VSphereInTreeDriverName = migplan.VSphereInTreeDriverName
 	VSphereCSIDriverName    = migplan.VSphereCSIDriverName
+	AWSInTreeDriverName     = migplan.AWSInTreeDriverName
 )
 
 // getPVs Get the persistent volumes included in the plan which are included in the
@@ -305,12 +307,27 @@ func (t *Task) staticallyProvisionDestPV() error {
 				//TODO low priority
 				return fmt.Errorf("not implement yet from %s to %s", srcProvisioner, destProvisioner)
 			}
+		case AWSInTreeDriverName:
+			if srcProvisioner != AWSInTreeDriverName {
+				return fmt.Errorf("not supported from %s to %s", srcProvisioner, destProvisioner)
+			}
+
+			destPVResource = buildAwsEBSPVSpec(
+				destPVName,
+				pv.PVC.Name,
+				destPVCNamespace,
+				srcPVResource.Spec.AWSElasticBlockStore.FSType,
+				srcPVResource.Spec.AWSElasticBlockStore.VolumeID,
+				srcPVResource.Spec.Capacity,
+				srcPVResource.Spec.AccessModes,
+				labels,
+				srcPVResource.Spec.NodeAffinity)
 
 		}
 		if destPVResource == nil {
 			return fmt.Errorf("not supported from %s to %s", srcProvisioner, destProvisioner)
 		}
-		t.Log.Infof("Privision PV %s in destination cluster with spec:\n %s", destPVResource.Name, destPVResource.String())
+		t.Log.Infof("Provision PV %s in destination cluster with spec:\n %s", destPVResource.Name, destPVResource.String())
 		err := destClient.Create(context.TODO(), destPVResource)
 		if err != nil {
 			return liberr.Wrap(err)
@@ -334,7 +351,7 @@ func (t *Task) staticallyProvisionDestPV() error {
 				VolumeName:       destPVName,
 			},
 		}
-		t.Log.Infof("Privision PVC %s in destination cluster with spec:\n %s", destPVCResource.Name, destPVCResource.String())
+		t.Log.Infof("Provision PVC %s in destination cluster with spec:\n %s", destPVCResource.Name, destPVCResource.String())
 		err = destClient.Create(context.TODO(), destPVCResource)
 		if err != nil {
 			return liberr.Wrap(err)
@@ -399,6 +416,32 @@ func buildVSphereCSPPVSpec(pvName, pvcName, pvcNamespace, fsType, volumePath str
 					VolumePath: volumePath,
 				},
 			},
+		},
+	}
+}
+
+func buildAwsEBSPVSpec(pvName, pvcName, pvcNamespace, fsType, volumeID string, capacity corev1.ResourceList, accessMode []corev1.PersistentVolumeAccessMode, labels map[string]string, nodeAffinity *corev1.VolumeNodeAffinity) *corev1.PersistentVolume {
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        pvName,
+			Annotations: map[string]string{ProvisionedByAnnotation: AWSInTreeDriverName},
+			Labels:      labels,
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			Capacity:                      capacity,
+			AccessModes:                   accessMode,
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+			ClaimRef: &corev1.ObjectReference{
+				Name:      pvcName,
+				Namespace: pvcNamespace,
+			},
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				AWSElasticBlockStore: &corev1.AWSElasticBlockStoreVolumeSource{
+					FSType:   fsType,
+					VolumeID: volumeID,
+				},
+			},
+			NodeAffinity: nodeAffinity,
 		},
 	}
 }
