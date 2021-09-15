@@ -1,4 +1,4 @@
-VERSION ?= 0.2.0
+VERSION ?= 0.2.1
 REPO ?= gcr.io/cf-pks-releng-environments/tm/kmotion
 # Image URL to use all building/pushing image targets
 IMG ?= ${REPO}:${VERSION}
